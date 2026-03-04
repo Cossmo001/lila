@@ -40,10 +40,10 @@ function App() {
 
   // Sync FCM Token
   useEffect(() => {
-    if (user && userData) {
+    if (user) {
       syncFCMToken();
     }
-  }, [user, userData, syncFCMToken]);
+  }, [user?.uid, syncFCMToken]);
 
   // Listen to total unread chats count
   useEffect(() => {

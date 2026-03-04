@@ -19,5 +19,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const messaging = getMessaging(app);
+
+let messagingInstance = null;
+try {
+  messagingInstance = getMessaging(app);
+} catch (e) {
+  console.warn("Firebase Messaging not supported in this environment:", e);
+}
+
+export const messaging = messagingInstance;
 export default app;

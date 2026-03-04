@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Lila Chat',
+        name: 'Kadi Chat',
         short_name: 'Kadi',
         description: 'A premium blue-themed chat application',
         theme_color: '#2563eb',

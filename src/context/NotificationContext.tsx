@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { MessageSquare, Phone, Info, X } from 'lucide-react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, db } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 type NotificationType = 'message' | 'call' | 'info';
@@ -106,22 +106,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user } = useAuth();
 
   const syncFCMToken = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.uid || !messaging) return;
     
     try {
       const permission = await requestNativePermission();
       if (!permission) return;
 
       const currentToken = await getToken(messaging, {
-        vapidKey: 'BJSWo-sUkxCDa4FhSvMn6pBy2sXXrwn41loRH3CrmUVrcXwEUvH9_fz6xbvj1RO-dt13bzdSsuWhMJ2c6wNaSOM'
+        vapidKey: 'BGNA0Dcd-RVPIozjD4PvSSzf7vZEMvOXgl88uCa5ykH-WlgKsYDfb2UC6_JIhN7_S-xmLrsksyURN1rCHRexo_c'
       });
 
       if (currentToken) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          fcmToken: currentToken,
-          lastTokenSync: new Date()
-        });
-        console.log("FCM Token synced successfully");
+        // Only update if the token has actually changed to avoid infinite loops with userData listeners
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userData = userDoc.data();
+        
+        if (userData?.fcmToken !== currentToken) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            fcmToken: currentToken,
+            lastTokenSync: new Date()
+          });
+          console.log("FCM Token synced successfully");
+        } else {
+          console.log("FCM Token already up to date");
+        }
       }
     } catch (err) {
       console.error("FCM Token sync failed:", err);
@@ -130,6 +138,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Listen for foreground messages
   useEffect(() => {
+    if (!messaging) return;
+    
     const unsubscribe = onMessage(messaging, (payload) => {
       console.log('Foreground message received:', payload);
       if (payload.notification) {

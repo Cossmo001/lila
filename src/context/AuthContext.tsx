@@ -28,47 +28,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let unsubUserData: (() => void) | undefined;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        const userRef = doc(db, 'users', user.uid);
-        
-        // Real-time listener for userData
-        unsubUserData = onSnapshot(userRef, (snapshot) => {
-          if (snapshot.exists()) {
-            setUserData({ ...snapshot.data(), uid: user.uid });
-          }
-        });
-
-        // Set online status
-        await updateDoc(userRef, {
-          isOnline: true,
-          lastSeen: serverTimestamp()
-        });
-
-        // Handle window close / disconnect
-        const handlePresence = () => {
-          if (document.visibilityState === 'hidden') {
-            updateDoc(userRef, { isOnline: false, lastSeen: serverTimestamp() });
-          } else {
-            updateDoc(userRef, { isOnline: true, lastSeen: serverTimestamp() });
-          }
-        };
-
-        document.addEventListener('visibilitychange', handlePresence);
-        window.addEventListener('beforeunload', () => {
-          updateDoc(userRef, { isOnline: false, lastSeen: serverTimestamp() });
-        });
-      } else {
-        setUserData(null);
+      // Cleanup previous user data listener if it exists
+      if (unsubUserData) {
+        unsubUserData();
+        unsubUserData = undefined;
       }
-      setLoading(false);
 
-      return () => {
-        if (unsubUserData) unsubUserData();
-      };
+      setUser(user);
+      try {
+        if (user) {
+          const userRef = doc(db, 'users', user.uid);
+          
+          // Real-time listener for userData
+          unsubUserData = onSnapshot(userRef, (snapshot) => {
+            if (snapshot.exists()) {
+              setUserData({ ...snapshot.data(), uid: user.uid });
+            }
+          });
+
+          // Set online status
+          await updateDoc(userRef, {
+            isOnline: true,
+            lastSeen: serverTimestamp()
+          });
+
+          // Handle window close / disconnect
+          const handlePresence = () => {
+            if (document.visibilityState === 'hidden') {
+              updateDoc(userRef, { isOnline: false, lastSeen: serverTimestamp() });
+            } else {
+              updateDoc(userRef, { isOnline: true, lastSeen: serverTimestamp() });
+            }
+          };
+
+          document.addEventListener('visibilitychange', handlePresence);
+        } else {
+          setUserData(null);
+        }
+      } catch (err) {
+        console.error("Auth initialization error:", err);
+      } finally {
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (unsubUserData) unsubUserData();
+    };
   }, []);
 
   const updateProfile = async (data: Partial<any>) => {

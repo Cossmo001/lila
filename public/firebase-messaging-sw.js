@@ -2,12 +2,14 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "AIzaSyBkRhMQiy9AiI6jW2bZUVqfjRAOneTdDsk",
-  authDomain: "lila-chat.firebaseapp.com",
-  projectId: "lila-chat",
-  storageBucket: "lila-chat.firebasestorage.app",
-  messagingSenderId: "1010976647627",
-  appId: "1:1010976647627:web:a58f6a01dbf1b59082ee4e"
+  // REPLACE THESE with your new project's config!
+  apiKey: "AIzaSyB1ZXXNpllmC1NA5dXd6E0k9BXnCLPW-Ns",
+  authDomain: "lila-8e550.firebaseapp.com",
+  projectId: "lila-8e550",
+  storageBucket: "lila-8e550.firebasestorage.app",
+  messagingSenderId: "264441686941",
+  appId: "1:264441686941:web:55a952e50a46daadfc9d74",
+  measurementId: "G-10035YJGK4"
 });
 
 const messaging = firebase.messaging();
