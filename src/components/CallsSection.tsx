@@ -4,7 +4,25 @@ import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/f
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
-// ... interface definitions ...
+interface CallLog {
+  id: string;
+  callerId: string;
+  recipientId: string;
+  participants: string[];
+  status: string;
+  type: 'audio' | 'video';
+  caller: {
+    username: string;
+    avatarUrl?: string | null;
+    uid: string;
+  };
+  recipientName?: string;
+  createdAt: any;
+}
+
+interface CallsSectionProps {
+  onInitiateCall?: (recipient: any, type: 'audio' | 'video') => void;
+}
 
 const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
   const { user } = useAuth();
@@ -104,7 +122,7 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
                       <span className="chat-time" style={{ marginLeft: '4px' }}>{formatTime(call.createdAt)}</span>
                     </div>
                   </div>
-                  <div className="call-action" onClick={() => onInitiateCall?.(type === 'outgoing' ? { uid: call.recipientId, username: displayName } : { uid: call.callerId, ...call.caller }, call.type)}>
+                  <div className="call-action" onClick={() => onInitiateCall?.(type === 'outgoing' ? { uid: call.recipientId, username: displayName } : call.caller, call.type)}>
                     {call.type === 'video' ? <Video size={20} color="var(--accent)" /> : <Phone size={20} color="var(--accent)" />}
                   </div>
                 </div>
