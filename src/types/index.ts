@@ -1,7 +1,7 @@
 export interface Message {
   id: string;
   text: string;
-  type: 'text' | 'image' | 'video' | 'audio';
+  type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link';
   mediaUrl?: string;
   sender: 'me' | 'them';
   timestamp: Date;

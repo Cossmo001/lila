@@ -14,6 +14,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [chats, setChats] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'favorites'>('all');
 
   // Load existing chats with real-time presence and unread logic
@@ -58,15 +60,56 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
 
+    setIsSearching(true);
+    setHasSearched(true);
+    console.log("Starting search for:", searchTerm.trim());
+
     try {
-      const q = query(collection(db, 'users'), where('username', '==', searchTerm.trim().toLowerCase()));
+      const searchLower = searchTerm.trim().toLowerCase();
+      
+      // 1. Exact match lookup via 'usernames' collection (works for ALL users)
+      // This is crucial for finding users who haven't logged in since the usernameLower fix.
+      const usernameRef = doc(db, 'usernames', searchLower);
+      const usernameDoc = await getDoc(usernameRef);
+      
+      const results: any[] = [];
+      const seenUids = new Set<string>();
+
+      if (usernameDoc.exists()) {
+        const uid = usernameDoc.data().uid;
+        if (uid !== user?.uid) {
+           const userRef = doc(db, 'users', uid);
+           const userDoc = await getDoc(userRef);
+           if (userDoc.exists()) {
+             const foundUserData = { ...userDoc.data(), uid };
+             results.push(foundUserData);
+             seenUids.add(uid);
+             console.log("Exact match found via usernames collection");
+           }
+        }
+      }
+
+      // 2. Prefix search for newer users who have the usernameLower field
+      const q = query(
+        collection(db, 'users'), 
+        where('usernameLower', '>=', searchLower),
+        where('usernameLower', '<=', searchLower + '\uf8ff')
+      );
       const querySnapshot = await getDocs(q);
-      const results = querySnapshot.docs
-        .map(doc => doc.data())
-        .filter(u => u.uid !== user?.uid);
+      querySnapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.uid !== user?.uid && !seenUids.has(data.uid)) {
+          results.push(data);
+          seenUids.add(data.uid);
+        }
+      });
+      
+      console.log(`Search found ${results.length} results`);
       setSearchResults(results);
     } catch (err) {
       console.error("Search error:", err);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -170,24 +213,46 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       </div>
 
       <div className="chat-list">
-        {searchResults.length > 0 && (
+        {(isSearching || hasSearched) && (
           <div className="search-results-section">
-            <div className="section-title">PEOPLE</div>
-            {searchResults.map(result => (
-              <div key={result.uid} className="chat-item" onClick={() => startChat(result)}>
-                <div className="avatar" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
-                  {result.avatarUrl ? (
-                    <img src={result.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    result.username[0].toUpperCase()
-                  )}
-                </div>
-                <div className="chat-info">
-                  <div className="chat-name">{result.username}</div>
-                  <div className="chat-last-msg">Kadi user</div>
-                </div>
+            <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="section-title">PEOPLE</div>
+              {hasSearched && !isSearching && (
+                <button 
+                  className="close-search" 
+                  onClick={() => { setHasSearched(false); setSearchResults([]); setSearchTerm(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '12px' }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {isSearching ? (
+              <div className="search-status" style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                Searching...
               </div>
-            ))}
+            ) : searchResults.length > 0 ? (
+              searchResults.map(result => (
+                <div key={result.uid} className="chat-item" onClick={() => startChat(result)}>
+                  <div className="avatar" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+                    {result.avatarUrl ? (
+                      <img src={result.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      result.username[0].toUpperCase()
+                    )}
+                  </div>
+                  <div className="chat-info">
+                    <div className="chat-name">{result.username}</div>
+                    <div className="chat-last-msg">Kadi user</div>
+                  </div>
+                </div>
+              ))
+            ) : hasSearched ? (
+              <div className="search-status" style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                No users found matching "{searchTerm}"
+              </div>
+            ) : null}
             <hr className="section-divider" />
           </div>
         )}

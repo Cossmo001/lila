@@ -40,9 +40,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userRef = doc(db, 'users', user.uid);
           
           // Real-time listener for userData
-          unsubUserData = onSnapshot(userRef, (snapshot) => {
+          unsubUserData = onSnapshot(userRef, async (snapshot) => {
             if (snapshot.exists()) {
-              setUserData({ ...snapshot.data(), uid: user.uid });
+              const data = snapshot.data();
+              setUserData({ ...data, uid: user.uid });
+              
+              // Auto-fix: Ensure legacy users have usernameLower for search
+              if (data.username && !data.usernameLower) {
+                console.log("Auto-fixing legacy user: adding usernameLower");
+                try {
+                  await updateDoc(userRef, {
+                    usernameLower: data.username.toLowerCase()
+                  });
+                } catch (e) {
+                  console.error("Failed to auto-fix legacy user:", e);
+                }
+              }
             }
           });
 

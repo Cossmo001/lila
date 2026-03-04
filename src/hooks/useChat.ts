@@ -72,12 +72,18 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     return unsubscribe;
   }, [chatId, userId]);
 
-  const sendMessage = useCallback(async (text: string, type: 'text' | 'image' | 'video' | 'audio' = 'text', mediaUrl?: string) => {
+  const sendMessage = useCallback(async (text: string, type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link' = 'text', mediaUrl?: string) => {
     if (!chatId || !userId) return;
+
+    // Detect if text contains a link and mark it
+    let messageType = type;
+    if (type === 'text' && /https?:\/\/[^\s]+/.test(text)) {
+      messageType = 'link';
+    }
 
     const messageData = {
       text,
-      type,
+      type: messageType,
       mediaUrl: mediaUrl || null,
       senderId: userId,
       timestamp: serverTimestamp(),
@@ -89,7 +95,8 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     await addDoc(collection(db, 'chats', chatId, 'messages'), messageData);
 
     // Update last message in chat doc
-    const lastMsgText = type === 'text' ? text : `[${type}]`;
+    const lastMsgText = messageType === 'text' ? text : 
+                        messageType === 'link' ? text : `[${messageType}]`;
     await writeBatch(db).update(doc(db, 'chats', chatId), {
       lastMessage: {
         text: lastMsgText,
@@ -101,21 +108,21 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     }).commit();
   }, [chatId, userId]);
 
-  const sendMediaMessage = useCallback(async (file: File, type: 'image' | 'video' | 'audio') => {
+  const sendMediaMessage = useCallback(async (file: File, type: 'image' | 'video' | 'audio' | 'file') => {
     if (!chatId || !userId) return;
 
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${chatId}/${type}s/${fileName}`;
+    const filePath = `${chatId}/${type === 'file' ? 'docs' : type + 's'}/${fileName}`;
     
     // Upload to Supabase Storage
     const { error } = await supabase.storage
-      .from('media') // Make sure you created a bucket named 'media'
+      .from('media') 
       .upload(filePath, file);
 
     if (error) {
       console.error('Supabase upload error:', error);
-      alert(`Upload failed: ${error.message}. Please ensure you created a PUBLIC bucket named 'media' in Supabase.`);
+      alert(`Upload failed: ${error.message}.`);
       return;
     }
 
@@ -124,7 +131,9 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       .from('media')
       .getPublicUrl(filePath);
     
-    await sendMessage("", type, publicUrl);
+    // For files, we might want to include the filename in the text
+    const messageText = type === 'file' ? file.name : "";
+    await sendMessage(messageText, type, publicUrl);
   }, [chatId, userId, sendMessage]);
 
 

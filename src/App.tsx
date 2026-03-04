@@ -401,9 +401,10 @@ function App() {
           )}
         </div>
 
-        {showProfileModal && recipientData && (
+        {showProfileModal && recipientData && activeChat && (
           <ContactProfileModal 
             contact={recipientData} 
+            chatId={activeChat.id}
             onClose={() => setShowProfileModal(false)} 
           />
         )}

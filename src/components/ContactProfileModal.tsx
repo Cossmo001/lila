@@ -1,19 +1,60 @@
-import React, { useState } from 'react';
-import { X, Edit2, MessageSquare, Phone, Video, Shield, ChevronRight, Volume2, History, Lock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Edit2, MessageSquare, Phone, Video, Shield, ChevronRight, Volume2, History, Lock, AlertCircle, FileText, ExternalLink, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface ContactProfileModalProps {
   contact: any;
+  chatId?: string;
   onClose: () => void;
 }
 
-const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, onClose }) => {
+const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chatId, onClose }) => {
   const { userData, setContactAlias, updateProfile } = useAuth();
   const currentAlias = userData?.contacts?.[contact.uid]?.alias || '';
   const [alias, setAlias] = useState(currentAlias);
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const isMuted = userData?.settings?.muted?.[contact.uid] || false;
+
+  const [media, setMedia] = useState<any[]>([]);
+  const [docs, setDocs] = useState<any[]>([]);
+  const [links, setLinks] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'info' | 'all-media'>('info');
+  const [mediaSubTab, setMediaSubTab] = useState<'media' | 'docs' | 'links'>('media');
+
+  useEffect(() => {
+    if (!chatId) return;
+
+    const q = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const allMedia: any[] = [];
+      const allDocs: any[] = [];
+      const allLinks: any[] = [];
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.type === 'image' || data.type === 'video') {
+          allMedia.push({ id: doc.id, ...data });
+        } else if (data.type === 'file') {
+          allDocs.push({ id: doc.id, ...data });
+        } else if (data.type === 'link') {
+          allLinks.push({ id: doc.id, ...data });
+        }
+      });
+
+      setMedia(allMedia);
+      setDocs(allDocs);
+      setLinks(allLinks);
+    });
+
+    return unsubscribe;
+  }, [chatId]);
 
   const handleToggleMute = async () => {
     try {
@@ -41,6 +82,81 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, onCl
       setIsSaving(false);
     }
   };
+
+  if (activeTab === 'all-media') {
+    return (
+      <div className="profile-modal">
+        <header className="modal-header whatsapp-style">
+          <button className="close-btn" onClick={() => setActiveTab('info')}><ChevronLeft size={24} /></button>
+          <h2>Media, links and docs</h2>
+        </header>
+        
+        <div className="wa-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)', background: 'var(--bg-sidebar)' }}>
+          <div className={`wa-tab ${mediaSubTab === 'media' ? 'active' : ''}`} onClick={() => setMediaSubTab('media')} style={{ flex: 1, textAlign: 'center', padding: '12px', cursor: 'pointer', borderBottom: mediaSubTab === 'media' ? '3px solid var(--accent)' : 'none', color: mediaSubTab === 'media' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>Media</div>
+          <div className={`wa-tab ${mediaSubTab === 'docs' ? 'active' : ''}`} onClick={() => setMediaSubTab('docs')} style={{ flex: 1, textAlign: 'center', padding: '12px', cursor: 'pointer', borderBottom: mediaSubTab === 'docs' ? '3px solid var(--accent)' : 'none', color: mediaSubTab === 'docs' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>Docs</div>
+          <div className={`wa-tab ${mediaSubTab === 'links' ? 'active' : ''}`} onClick={() => setMediaSubTab('links')} style={{ flex: 1, textAlign: 'center', padding: '12px', cursor: 'pointer', borderBottom: mediaSubTab === 'links' ? '3px solid var(--accent)' : 'none', color: mediaSubTab === 'links' ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>Links</div>
+        </div>
+
+        <div className="profile-scroll-v3" style={{ padding: '16px' }}>
+          {mediaSubTab === 'media' && (
+            <div className="wa-media-grid">
+              {media.map(item => (
+                <div key={item.id} className="wa-media-box" style={{ background: 'var(--bg-active)', overflow: 'hidden' }}>
+                  {item.type === 'image' ? (
+                    <img src={item.mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                      <Video size={24} color="white" />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {media.length === 0 && <p style={{ gridColumn: 'span 3', textAlign: 'center', color: 'var(--text-secondary)', marginTop: '20px' }}>No media shared</p>}
+            </div>
+          )}
+
+          {mediaSubTab === 'docs' && (
+            <div className="wa-docs-list">
+              {docs.map(item => (
+                <div key={item.id} className="wa-list-item" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                  <div style={{ width: '40px', height: '40px', background: '#5f66cd', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FileText size={20} color="white" />
+                  </div>
+                  <div className="wa-item-content">
+                    <span className="wa-item-title" style={{ fontSize: '0.9rem' }}>{item.text || 'Document'}</span>
+                    <span className="wa-item-desc" style={{ fontSize: '0.75rem' }}>{item.timestamp?.toDate().toLocaleDateString()}</span>
+                  </div>
+                  <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+                    <ExternalLink size={16} />
+                  </a>
+                </div>
+              ))}
+              {docs.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '20px' }}>No documents shared</p>}
+            </div>
+          )}
+
+          {mediaSubTab === 'links' && (
+            <div className="wa-links-list">
+              {links.map(item => (
+                <div key={item.id} className="wa-list-item" style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                  <div style={{ width: '40px', height: '40px', background: 'var(--bg-active)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ExternalLink size={20} color="var(--accent)" />
+                  </div>
+                  <div className="wa-item-content">
+                    <span className="wa-item-title" style={{ fontSize: '0.9rem', color: 'var(--accent)', textDecoration: 'underline' }}>
+                      {item.text}
+                    </span>
+                    <span className="wa-item-desc" style={{ fontSize: '0.75rem' }}>{item.timestamp?.toDate().toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+              {links.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '20px' }}>No links shared</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-modal">
@@ -118,17 +234,30 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, onCl
 
         {/* Media Section */}
         <section className="wa-section">
-          <div className="wa-media-header" style={{ cursor: 'pointer' }}>
+          <div className="wa-media-header" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('all-media')}>
             <span className="wa-label">Media, links and docs</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span className="wa-date" style={{ fontSize: '0.85rem' }}>24</span>
+              <span className="wa-date" style={{ fontSize: '0.85rem' }}>{media.length + docs.length + links.length}</span>
               <ChevronRight size={16} className="wa-chevron" />
             </div>
           </div>
           <div className="wa-media-grid" style={{ marginTop: '12px' }}>
-            <div className="wa-media-box" />
-            <div className="wa-media-box" />
-            <div className="wa-media-box" />
+            {media.slice(0, 3).map(item => (
+              <div key={item.id} className="wa-media-box" style={{ background: 'var(--bg-active)', overflow: 'hidden' }}>
+                {item.type === 'image' ? (
+                  <img src={item.mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                    <Video size={18} color="white" />
+                  </div>
+                )}
+              </div>
+            ))}
+            {media.length === 0 && (
+              <div style={{ gridColumn: 'span 3', padding: '10px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                No media shared yet
+              </div>
+            )}
           </div>
         </section>
 

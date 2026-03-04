@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Smile, Plus, Mic, Image, Video, X, Square } from 'lucide-react';
+import { Send, Smile, Plus, Mic, Image, Video, X, Square, FileText } from 'lucide-react';
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
-  onSendMedia: (file: File, type: 'image' | 'video' | 'audio') => void;
+  onSendMedia: (file: File, type: 'image' | 'video' | 'audio' | 'file') => void;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => {
@@ -17,6 +17,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => 
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const attachmentsRef = useRef<HTMLDivElement>(null);
 
@@ -56,13 +57,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => 
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
     const file = e.target.files?.[0];
     if (file) {
       setIsUploading(true);
       setShowAttachments(false);
       try {
-        await onSendMedia(file, type);
+        await onSendMedia(file, type as any);
       } finally {
         setIsUploading(false);
         if (e.target) e.target.value = '';
@@ -117,6 +118,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => 
   return (
     <div className="chat-input-area" ref={attachmentsRef}>
       <div className={`attachments-menu ${showAttachments ? 'active' : ''}`}>
+        <button className="attachment-item" onClick={() => docInputRef.current?.click()} disabled={isUploading}>
+          <div className="icon-circle" style={{ background: '#5f66cd' }}><FileText size={20} /></div>
+          <span>Document</span>
+        </button>
         <button className="attachment-item" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
           <div className="icon-circle" style={{ background: '#7f66ff' }}><Image size={20} /></div>
           <span>Photos</span>
@@ -127,6 +132,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => 
         </button>
         <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleFileSelect(e, 'image')} />
         <input type="file" ref={videoInputRef} hidden accept="video/*" onChange={(e) => handleFileSelect(e, 'video')} />
+        <input type="file" ref={docInputRef} hidden onChange={(e) => handleFileSelect(e, 'file')} />
       </div>
 
       <button className={`action-btn ${showAttachments ? 'active' : ''}`} onClick={() => !isUploading && setShowAttachments(!showAttachments)} disabled={isUploading}>

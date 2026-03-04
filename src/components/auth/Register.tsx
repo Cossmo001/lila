@@ -45,6 +45,7 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         username: username,
+        usernameLower: username.toLowerCase(),
         email: email,
         photoURL: null,
         isOnline: true,
