@@ -509,13 +509,16 @@ function App() {
       )}
 
       {/* Floating Feedback Button for Mobile */}
-      <button 
-        className="mobile-fab feedback-fab" 
-        onClick={() => setCurrentView('feedback')}
-        title="Send Feedback"
-      >
-        <MessageCircle size={24} />
-      </button>
+      <div className="mobile-fab-container feedback-fab-wrapper">
+        <button 
+          className="mobile-fab feedback-fab" 
+          onClick={() => setCurrentView('feedback')}
+          title="Send Feedback"
+        >
+          <MessageCircle size={24} />
+        </button>
+        <span className="fab-label">Feedback</span>
+      </div>
     </div>
   );
 }
