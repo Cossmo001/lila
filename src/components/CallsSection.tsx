@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Video } from 'lucide-react';
-import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,7 +36,7 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
     const q = query(
       collection(db, 'calls'),
       where('participants', 'array-contains', user.uid),
-      orderBy('createdAt', 'desc'),
+      // orderBy('createdAt', 'desc'),
       limit(20)
     );
 
@@ -46,6 +46,9 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
         ...doc.data()
       })) as CallLog[];
       setCalls(logs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Calls listener error:", error);
       setLoading(false);
     });
 
