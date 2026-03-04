@@ -2592,6 +2592,17 @@ input:checked + .slider:before {
   width: 100%;
 }
 
+.message-wrapper.me {
+  justify-content: flex-end;
+}
+
+.message-wrapper.them {
+  justify-content: flex-start;
+}
+
+.message-wrapper.me .message {
+  margin-left: auto;
+}
 .message-wrapper.selected {
   background: var(--accent-muted);
 }

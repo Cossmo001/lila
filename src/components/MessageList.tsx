@@ -126,7 +126,7 @@ const MessageList: React.FC<MessageListProps> = ({
         {messages.map((msg) => (
             <div 
               key={msg.id}
-              className={`message-wrapper ${selectedMessages.has(msg.id) ? 'selected' : ''}`}
+              className={`message-wrapper ${msg.sender} ${selectedMessages.has(msg.id) ? 'selected' : ''}`}
               onClick={() => isSelectionMode && toggleSelectMessage(msg.id)}
             >
               {isSelectionMode && (
