@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, Check, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 interface CreateGroupModalProps {
   onClose: () => void;
@@ -37,8 +37,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
 
         const contactData = await Promise.all(
           Array.from(contactUids).map(async (uid) => {
-            const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', uid)));
-            return userDoc.empty ? null : { uid, ...userDoc.docs[0].data() };
+            const userRef = doc(db, 'users', uid);
+            const userDoc = await getDoc(userRef);
+            return userDoc.exists() ? { uid, ...userDoc.data() } : null;
           })
         );
         setRecentContacts(contactData.filter(Boolean));
@@ -56,15 +57,36 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
     e.preventDefault();
     if (!searchTerm.trim()) return;
     const searchLower = searchTerm.trim().toLowerCase();
+    
+    // Exact match via usernames collection
+    const usernameRef = doc(db, 'usernames', searchLower);
+    const usernameDoc = await getDoc(usernameRef);
+    
+    let results: any[] = [];
+    if (usernameDoc.exists()) {
+      const uid = usernameDoc.data().uid;
+      if (uid !== user?.uid) {
+        const userRef = doc(db, 'users', uid);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          results.push({ uid, ...userDoc.data() });
+        }
+      }
+    }
+
+    // Fallback/Wide search via users collection
     const q = query(
       collection(db, 'users'),
       where('usernameLower', '>=', searchLower),
       where('usernameLower', '<=', searchLower + '\uf8ff')
     );
     const snap = await getDocs(q);
-    setContacts(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() })).filter(c => c.uid !== user?.uid));
+    const wideResults = snap.docs
+      .map(doc => ({ uid: doc.id, ...doc.data() }))
+      .filter(c => c.uid !== user?.uid && !results.some(r => r.uid === c.uid));
+    
+    setContacts([...results, ...wideResults]);
   };
-
   const toggleContact = (uid: string) => {
     setSelectedContacts(prev => 
       prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]

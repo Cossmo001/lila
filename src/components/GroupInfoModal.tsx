@@ -49,16 +49,34 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
     setIsSearching(true);
     try {
       const searchLower = searchTerm.trim().toLowerCase();
+      
+      // Exact match check
+      const usernameRef = doc(db, 'usernames', searchLower);
+      const usernameDoc = await getDoc(usernameRef);
+      
+      const results: any[] = [];
+      if (usernameDoc.exists()) {
+        const uid = usernameDoc.data().uid;
+        if (!group.participants.includes(uid)) {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          if (userDoc.exists()) {
+            results.push({ uid, ...userDoc.data() });
+          }
+        }
+      }
+
+      // Prefix search
       const q = query(
         collection(db, 'users'),
         where('usernameLower', '>=', searchLower),
         where('usernameLower', '<=', searchLower + '\uf8ff')
       );
       const snap = await getDocs(q);
-      const results = snap.docs
+      const wideResults = snap.docs
         .map(doc => ({ uid: doc.id, ...doc.data() }))
-        .filter(u => !group.participants.includes(u.uid));
-      setSearchResults(results);
+        .filter(u => !group.participants.includes(u.uid) && !results.some(r => r.uid === u.uid));
+        
+      setSearchResults([...results, ...wideResults]);
     } catch (err) {
       console.error("Search error:", err);
     } finally {

@@ -14,6 +14,7 @@ import ContactProfileModal from './components/ContactProfileModal';
 import CallOverlay from './components/CallOverlay';
 import GroupInfoModal from './components/GroupInfoModal';
 import AdminPortal from './components/AdminPortal';
+import PermissionRequestOverlay from './components/PermissionRequestOverlay';
 import { useAuth } from './context/AuthContext';
 import { useAgora } from './context/AgoraContext';
 import { useNotification } from './context/NotificationContext';
@@ -25,7 +26,7 @@ import './index.css';
 function App() {
   const { user, userData, loading } = useAuth();
   const { join, leave } = useAgora();
-  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, requestNativePermission } = useNotification();
+  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken } = useNotification();
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
   const { messages, sendMessage: originalSendMessage, sendMediaMessage, deleteMessage, editMessage } = useChat(activeChat?.id || null, user?.uid || null);
@@ -42,38 +43,23 @@ function App() {
     recipient: any;
     isIncoming: boolean;
   } | null>(null);
+  const [showPermissionOverlay, setShowPermissionOverlay] = useState(false);
 
-  // Sync FCM Token and Handle Initial Permission Request
+  // Sync FCM Token and Handle Permission Flow Trigger
   useEffect(() => {
-    if (!user) return;
-
-    // Initial Sync (without prompting)
-    syncFCMToken();
-
-    // On Web/PWA, we need a user gesture to prompt. 
-    // We'll attach a one-time listener to the next click if permission isn't granted yet.
-    if (!('Notification' in window)) return;
-
-    if (Notification.permission === 'default') {
-      const handleFirstInteraction = async () => {
-        console.log("First interaction detected, requesting notification permission...");
-        const granted = await requestNativePermission(true);
-        if (granted) {
-          syncFCMToken();
-        }
-        window.removeEventListener('click', handleFirstInteraction);
-        window.removeEventListener('touchstart', handleFirstInteraction);
-      };
-
-      window.addEventListener('click', handleFirstInteraction, { once: true });
-      window.addEventListener('touchstart', handleFirstInteraction, { once: true });
-      
-      return () => {
-        window.removeEventListener('click', handleFirstInteraction);
-        window.removeEventListener('touchstart', handleFirstInteraction);
-      };
+    if (!user) {
+      setShowPermissionOverlay(false);
+      return;
     }
-  }, [user?.uid, syncFCMToken, requestNativePermission]);
+
+    // Check if permissions have been handled for this user
+    const handled = localStorage.getItem(`permissions_handled_${user.uid}`);
+    if (!handled) {
+      setShowPermissionOverlay(true);
+    } else {
+      syncFCMToken();
+    }
+  }, [user?.uid, syncFCMToken]);
 
   // Listen to total unread chats count
   useEffect(() => {
@@ -537,6 +523,18 @@ function App() {
           isIncoming={activeCall.isIncoming}
           onEndCall={endCall}
           onAccept={acceptCall}
+        />
+      )}
+
+      {showPermissionOverlay && (
+        <PermissionRequestOverlay 
+          onComplete={() => {
+            setShowPermissionOverlay(false);
+            if (user) {
+              localStorage.setItem(`permissions_handled_${user.uid}`, 'true');
+              syncFCMToken();
+            }
+          }} 
         />
       )}
 
