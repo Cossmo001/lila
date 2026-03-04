@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon } from 'lucide-react';
+import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon, Image as ImageIcon } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 
-type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats';
+type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats' | 'wallpaper';
 
 const SettingsSection: React.FC = () => {
   const { user, userData, updateProfile } = useAuth();
@@ -54,6 +54,51 @@ const SettingsSection: React.FC = () => {
     }
   };
 
+  const handleWallpaperUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.uid) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `wallpapers/${user.uid}_${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(filePath);
+
+      const newSettings = { ...userData?.settings };
+      if (!newSettings.chats) newSettings.chats = {};
+      newSettings.chats.wallpaper = { type: 'image', value: publicUrl };
+      
+      await updateProfile({ settings: newSettings });
+      setSubView('chats');
+    } catch (err: any) {
+      console.error("Upload wallpaper error:", err);
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const setWallpaperColor = async (color: string) => {
+    try {
+      const newSettings = { ...userData?.settings };
+      if (!newSettings.chats) newSettings.chats = {};
+      newSettings.chats.wallpaper = { type: 'color', value: color };
+      await updateProfile({ settings: newSettings });
+    } catch (err) {
+      console.error("Set wallpaper color error:", err);
+    }
+  };
+
   const toggleSetting = async (category: string, key: string, currentValue: boolean) => {
     try {
       const newSettings = { ...userData?.settings };
@@ -76,6 +121,21 @@ const SettingsSection: React.FC = () => {
       }
     }
     await toggleSetting('notifications', 'desktop', isCurrentlyOn);
+  };
+
+  const handleThemeToggle = async () => {
+    const isDark = userData?.settings?.theme !== 'light';
+    const newTheme = isDark ? 'light' : 'dark';
+    try {
+      await updateProfile({
+        settings: {
+          ...userData?.settings,
+          theme: newTheme
+        }
+      });
+    } catch (err) {
+      console.error("Theme toggle error:", err);
+    }
   };
 
   const renderMainSettings = () => (
@@ -234,7 +294,11 @@ const SettingsSection: React.FC = () => {
           <span>Dark Mode</span>
         </div>
         <label className="switch">
-          <input type="checkbox" checked={true} disabled />
+          <input 
+            type="checkbox" 
+            checked={userData?.settings?.theme !== 'light'} 
+            onChange={handleThemeToggle} 
+          />
           <span className="slider"></span>
         </label>
       </div>
@@ -247,8 +311,66 @@ const SettingsSection: React.FC = () => {
           <span className="slider"></span>
         </label>
       </div>
+      <div className="settings-item" onClick={() => setSubView('wallpaper')}>
+        <ImageIcon size={20} className="settings-icon" />
+        <div className="settings-text">
+          <span>Chat Wallpaper</span>
+          <p>Choose a color or upload an image</p>
+        </div>
+        <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
+      </div>
     </div>
   );
+
+  const renderWallpaperSelection = () => {
+    const premiumColors = [
+      '#0a1219', '#111b21', '#202c33', '#232d36', '#2a3942', 
+      '#075e54', '#128c7e', '#0b141a', '#1c2e35', '#2c3e50',
+      '#1a1a1a', '#2d3436', '#636e72', '#2d3436', '#000000'
+    ];
+
+    return (
+      <div className="fade-in">
+        <div className="wallpaper-preview-container">
+           <div className="wallpaper-preview" style={{ 
+              background: userData?.settings?.chats?.wallpaper?.type === 'color' ? userData.settings.chats.wallpaper.value : undefined,
+              backgroundImage: userData?.settings?.chats?.wallpaper?.type === 'image' ? `url(${userData.settings.chats.wallpaper.value})` : undefined,
+           }}>
+              <div className="preview-bubble me">Preview your wallpaper</div>
+              <div className="preview-bubble them">Looks great!</div>
+           </div>
+        </div>
+
+        <div className="settings-item" onClick={() => fileInputRef.current?.click()}>
+          <ImageIcon size={20} className="settings-icon" />
+          <div className="settings-text">
+            <span>{isUploading ? 'Uploading...' : 'Upload Custom Wallpaper'}</span>
+          </div>
+          <input type="file" ref={fileInputRef} onChange={handleWallpaperUpload} accept="image/*" style={{ display: 'none' }} />
+        </div>
+
+        <div className="section-title">Solid Colors</div>
+        <div className="color-grid">
+          {premiumColors.map(color => (
+            <div 
+              key={color} 
+              className={`color-option ${userData?.settings?.chats?.wallpaper?.value === color ? 'active' : ''}`}
+              style={{ background: color }}
+              onClick={() => setWallpaperColor(color)}
+            >
+              {userData?.settings?.chats?.wallpaper?.value === color && <Check size={16} color="white" />}
+            </div>
+          ))}
+        </div>
+        
+        <div className="settings-item" style={{ marginTop: '20px' }} onClick={() => setWallpaperColor('')}>
+          <div className="settings-text">
+             <span style={{ color: 'var(--accent)' }}>Reset to Default</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (isEditingProfile) {
     return (
@@ -312,6 +434,7 @@ const SettingsSection: React.FC = () => {
         {subView === 'privacy' && renderPrivacy()}
         {subView === 'notifications' && renderNotifications()}
         {subView === 'chats' && renderChats()}
+        {subView === 'wallpaper' && renderWallpaperSelection()}
       </div>
     </div>
   );

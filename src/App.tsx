@@ -323,7 +323,7 @@ function App() {
   };
 
   return (
-    <div className={`main-layout ${activeChat ? 'chat-active' : ''} ${currentView !== 'chats' ? 'sidebar-hidden' : ''}`}>
+    <div className={`main-layout ${activeChat ? 'chat-active' : ''} ${currentView !== 'chats' ? 'sidebar-hidden' : ''}`} data-theme={userData?.settings?.theme || 'dark'}>
       <NavRail activeView={currentView} onSetActiveView={setCurrentView} unreadCount={unreadChatsCount} />
       
       {renderSidebar()}
@@ -363,7 +363,7 @@ function App() {
                   </div>
                 </header>
                 
-                <MessageList messages={messages} />
+                <MessageList messages={messages} wallpaper={userData?.settings?.chats?.wallpaper} />
                 
                 <ChatInput onSendMessage={sendMessage} onSendMedia={sendMediaMessage} />
               </>

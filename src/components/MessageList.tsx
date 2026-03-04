@@ -6,9 +6,13 @@ import CustomAudioPlayer from './CustomAudioPlayer';
 
 interface MessageListProps {
   messages: Message[];
+  wallpaper?: {
+    type: 'color' | 'image';
+    value: string;
+  };
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
 
@@ -58,7 +62,16 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 
   return (
     <>
-      <div className="message-list">
+      <div 
+        className="message-list" 
+        style={{ 
+          background: wallpaper?.type === 'color' ? wallpaper.value : undefined,
+          backgroundImage: wallpaper?.type === 'image' ? `url(${wallpaper.value})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
         {messages.map((msg) => (
           <div key={msg.id} className={`message ${msg.sender}`}>
             <div className="message-content">

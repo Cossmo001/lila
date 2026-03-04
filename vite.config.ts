@@ -12,8 +12,8 @@ export default defineConfig({
       manifest: {
         name: 'Kadi Chat',
         short_name: 'Kadi',
-        description: 'A premium blue-themed chat application',
-        theme_color: '#2563eb',
+        description: 'A premium blue-themed chat application by Kadi',
+        theme_color: '#3abcf4',
         icons: [
           {
             src: 'pwa-192x192.png',

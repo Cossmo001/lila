@@ -1,23 +1,23 @@
 :root {
-  /* WhatsApp Authentic Dark Palette */
-  --bg-deep: #0b141a;
+  /* Kadi Blue Premium Palette */
+  --bg-deep: #0a1219;
   --bg-sidebar: #111b21;
-  --bg-chat: #0b141a;
-  --bg-input: #202c33;
-  --bg-hover: #202c33;
+  --bg-chat: #0a1219;
+  --bg-input: #1e293b;
+  --bg-hover: #1e293b;
   --bg-active: #2a3942;
   --bg-panel: #111b21;
   
-  --accent: #00a884; /* WhatsApp Green */
-  --accent-blue: #0ea5e9;
-  --accent-muted: rgba(0, 168, 132, 0.1);
+  --accent: #3abcf4; /* Kadi Blue */
+  --accent-blue: #29a9f2;
+  --accent-muted: rgba(58, 188, 244, 0.1);
   
   --text-main: #e9edef;
   --text-secondary: #8696a0;
   --text-muted: #667781;
   --text-time: #8696a0;
   
-  --bubble-me: #005c4b;
+  --bubble-me: #3abcf4;
   --bubble-them: #202c33;
   
   --border-strong: #222d34;
@@ -25,6 +25,35 @@
   
   --shadow-premium: 0 4px 20px rgba(0, 0, 0, 0.3);
   --nav-rail-width: 64px;
+}
+
+[data-theme='light'] {
+  --bg-deep: #f8fafc;
+  --bg-sidebar: #ffffff;
+  --bg-chat: #f0f2f5;
+  --bg-input: #ffffff;
+  --bg-hover: #f1f5f9;
+  --bg-active: #e2e8f0;
+  --bg-panel: #ffffff;
+  
+  --accent: #3abcf4; /* Kadi Blue */
+  --accent-blue: #29a9f2;
+  --accent-muted: rgba(58, 188, 244, 0.1);
+  
+  --text-main: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --text-time: #64748b;
+  
+  --bubble-me: #3abcf4; /* Match dark mode accent for consistency if desired, or light blue */
+  --bubble-me-text: #ffffff;
+  --bubble-them: #ffffff;
+  
+  --border-strong: #e2e8f0;
+  --border-light: rgba(0, 0, 0, 0.05);
+  --glass-border: rgba(0, 0, 0, 0.04);
+  
+  --shadow-premium: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 * {
@@ -127,7 +156,6 @@ body {
   flex-direction: column;
   gap: 8px;
   background-color: var(--bg-chat);
-  background-image: radial-gradient(circle at 50% 50%, rgba(20, 30, 35, 1) 0%, rgba(11, 20, 26, 1) 100%);
 }
 
 .message {
@@ -143,14 +171,14 @@ body {
 .message.me {
   align-self: flex-end;
   background: var(--bubble-me);
-  color: #e9edef;
+  color: var(--bubble-me-text, #0b141a);
   border-bottom-right-radius: 2px;
 }
 
 .message.them {
   align-self: flex-start;
   background: var(--bubble-them);
-  color: #e9edef;
+  color: var(--text-main);
   border-bottom-left-radius: 2px;
 }
 
@@ -1400,8 +1428,8 @@ body {
   position: absolute;
   bottom: 80px;
   left: 20px;
-  background: #1c2a33;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-light);
   border-radius: 16px;
   padding: 10px;
   display: flex;
@@ -1430,7 +1458,7 @@ body {
   background: transparent;
   border: none;
   border-radius: 12px;
-  color: white;
+  color: var(--text-main);
   cursor: pointer;
   width: 100%;
   transition: background 0.2s;
@@ -1504,12 +1532,12 @@ body {
     padding: 0 8px !important;
     padding-bottom: env(safe-area-inset-bottom, 12px) !important;
     z-index: 5000;
-    background: rgba(17, 27, 33, 0.75) !important;
+    background: var(--bg-sidebar) !important;
     backdrop-filter: blur(25px) !important;
     -webkit-backdrop-filter: blur(25px) !important;
     border-right: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+    border-top: 1px solid var(--border-strong) !important;
+    box-shadow: var(--shadow-premium);
     justify-content: center;
     border-radius: 30px 30px 0 0;
   }
@@ -1643,7 +1671,7 @@ body {
   .section-header {
     padding: 24px 20px 8px;
     min-height: 70px;
-    background: linear-gradient(180deg, rgba(11, 20, 26, 1) 0%, rgba(11, 20, 26, 0.8) 100%);
+    background: var(--bg-sidebar);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -1676,7 +1704,7 @@ body {
   .chat-item {
     padding: 14px 20px !important;
     height: auto !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-light);
   }
 
   .chat-item .avatar {
@@ -1726,7 +1754,7 @@ body {
   padding: 12px 20px;
   cursor: pointer;
   transition: background 0.2s;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .settings-item:hover {
@@ -2139,10 +2167,10 @@ input:checked + .slider:before {
 
 .premium-toast {
   pointer-events: auto;
-  background: rgba(22, 33, 41, 0.7);
+  background: var(--bg-sidebar);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-light);
   border-radius: 16px;
   padding: 14px 18px;
   min-width: 320px;
@@ -2292,4 +2320,77 @@ input:checked + .slider:before {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
   100% { opacity: 1; }
+}
+
+/* Wallpaper Selection Styles */
+.wallpaper-preview-container {
+  padding: 24px;
+  background: var(--bg-deep);
+  display: flex;
+  justify-content: center;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.wallpaper-preview {
+  width: 100%;
+  max-width: 300px;
+  height: 200px;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-premium);
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--border-strong);
+}
+
+.preview-bubble {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.preview-bubble.me {
+  align-self: flex-end;
+  background: var(--bubble-me);
+  color: var(--bubble-me-text, #0b141a);
+  border-bottom-right-radius: 2px;
+}
+
+.preview-bubble.them {
+  align-self: flex-start;
+  background: var(--bubble-them);
+  color: var(--text-main);
+  border-bottom-left-radius: 2px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.color-option {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, border-color 0.2s;
+  border: 2px solid transparent;
+}
+
+.color-option:hover {
+  transform: scale(1.05);
+}
+
+.color-option.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-muted);
 }

@@ -21,9 +21,19 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
 
     try {
       // Check if username is taken
-      const usernameDoc = await getDoc(doc(db, 'usernames', username.toLowerCase()));
-      if (usernameDoc.exists()) {
-        throw new Error('Username already taken');
+      try {
+        const usernameDoc = await getDoc(doc(db, 'usernames', username.toLowerCase()));
+        if (usernameDoc.exists()) {
+          throw new Error('Username already taken');
+        }
+      } catch (checkErr: any) {
+        if (checkErr.code === 'permission-denied') {
+          console.error("Firestore permission denied on usernames check. Ensure Security Rules allow read access.");
+          throw new Error('Registration error: Username check failed due to insufficient permissions. Please contact support.');
+        } else if (checkErr.code === 'unavailable') {
+          throw new Error('Network error: Firestore is unavailable. Please check your internet connection.');
+        }
+        throw checkErr;
       }
 
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -48,7 +58,12 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
       });
 
     } catch (err: any) {
-      setError(err.message);
+      console.error("Registration error:", err);
+      if (err.code === 'auth/network-request-failed' || err.message?.includes('offline')) {
+        setError('Network error: Please check your internet connection and try again.');
+      } else {
+        setError(err.message || 'An unexpected error occurred during registration.');
+      }
     } finally {
       setLoading(false);
     }
