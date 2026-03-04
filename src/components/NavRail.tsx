@@ -17,6 +17,7 @@ const NavRail: React.FC<NavRailProps> = ({ activeView, onSetActiveView, unreadCo
         <div 
           className={`nav-item ${activeView === 'chats' ? 'active' : ''}`} 
           onClick={() => onSetActiveView('chats')}
+          title="Chats"
         >
           <MessageSquare size={26} />
           <span className="mobile-label">Chats</span>
@@ -25,22 +26,26 @@ const NavRail: React.FC<NavRailProps> = ({ activeView, onSetActiveView, unreadCo
         <div 
           className={`nav-item ${activeView === 'calls' ? 'active' : ''}`} 
           onClick={() => onSetActiveView('calls')}
+          title="Calls"
         >
           <Phone size={26} />
           <span className="mobile-label">Calls</span>
         </div>
-        <div className="nav-item communities-item">
+        <div className="nav-item communities-item" title="Groups">
           <Users size={26} />
           <span className="mobile-label">Groups</span>
         </div>
         <div 
           className={`nav-item ${activeView === 'settings' ? 'active' : ''}`} 
           onClick={() => onSetActiveView('settings')}
+          title="Settings"
         >
           <Settings size={26} />
           <span className="mobile-label">Settings</span>
         </div>
-        <div className="nav-item profile-item">
+      </div>
+      <div className="nav-bottom">
+        <div className="nav-item profile-item" title="Profile">
           <div className="mini-avatar" style={{ width: '28px', height: '28px' }}>
             {userData?.avatarUrl ? (
               <img src={userData.avatarUrl} alt="Me" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
