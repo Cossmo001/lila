@@ -22,7 +22,7 @@ import './index.css';
 function App() {
   const { user, userData, loading } = useAuth();
   const { join, leave } = useAgora();
-  const { showToast, playTone, stopTone, sendNativeNotification } = useNotification();
+  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken } = useNotification();
   const [activeChat, setActiveChat] = useState<{ id: string; recipient: any } | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
   const { messages, sendMessage: originalSendMessage, sendMediaMessage } = useChat(activeChat?.id || null, user?.uid || null);
@@ -37,6 +37,13 @@ function App() {
     recipient: any;
     isIncoming: boolean;
   } | null>(null);
+
+  // Sync FCM Token
+  useEffect(() => {
+    if (user && userData) {
+      syncFCMToken();
+    }
+  }, [user, userData, syncFCMToken]);
 
   // Listen to total unread chats count
   useEffect(() => {

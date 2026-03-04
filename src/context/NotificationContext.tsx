@@ -1,5 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { MessageSquare, Phone, Info, X } from 'lucide-react';
+import { getToken, onMessage } from 'firebase/messaging';
+import { messaging, db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { useAuth } from './AuthContext';
 
 type NotificationType = 'message' | 'call' | 'info';
 
@@ -18,6 +22,7 @@ interface NotificationContextType {
   stopTone: (type: 'incoming' | 'outgoing' | 'call') => void;
   requestNativePermission: () => Promise<boolean>;
   sendNativeNotification: (title: string, options?: NotificationOptions) => void;
+  syncFCMToken: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -98,8 +103,51 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, []);
 
+  const { user } = useAuth();
+
+  const syncFCMToken = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const permission = await requestNativePermission();
+      if (!permission) return;
+
+      const currentToken = await getToken(messaging, {
+        vapidKey: '_t_aLD810RRGbX5JEvIsvOuzaOWoFvC_gu8RNa0McLU'
+      });
+
+      if (currentToken) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          fcmToken: currentToken,
+          lastTokenSync: new Date()
+        });
+        console.log("FCM Token synced successfully");
+      }
+    } catch (err) {
+      console.error("FCM Token sync failed:", err);
+    }
+  }, [user?.uid, requestNativePermission]);
+
+  // Listen for foreground messages
+  useEffect(() => {
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('Foreground message received:', payload);
+      if (payload.notification) {
+        showToast({
+          type: 'message',
+          title: payload.notification.title || 'New Notification',
+          message: payload.notification.body || '',
+          avatarUrl: payload.notification.image
+        });
+        playTone('incoming');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [showToast, playTone]);
+
   return (
-    <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification }}>
+    <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification, syncFCMToken }}>
       {children}
       <div className="toast-container">
         {toasts.map((toast) => (
