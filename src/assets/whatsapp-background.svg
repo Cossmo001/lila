@@ -1,0 +1,12 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M100 50C100 44.4772 104.477 40 110 40H120C125.523 40 130 44.4772 130 50V60C130 65.5228 125.523 70 120 70H110C104.477 70 100 65.5228 100 60V50Z" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<circle cx="200" cy="100" r="10" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<path d="M300 150L320 170M320 150L300 170" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<path d="M50 250C50 244.477 54.4772 240 60 240H70C75.5228 240 80 244.477 80 250V260C80 265.523 75.5228 270 70 270H60C54.4772 270 50 265.523 50 260V250Z" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<circle cx="150" cy="300" r="8" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<path d="M250 350L270 370M270 350L250 370" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<path d="M350 50L370 70M370 50L350 70" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<circle cx="50" cy="100" r="12" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<path d="M180 200H220" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+<path d="M200 180V220" stroke="#E0F2FE" stroke-width="1.5" stroke-opacity="0.3"/>
+</svg>
