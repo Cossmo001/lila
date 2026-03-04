@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MessageSquarePlus, Check, CheckCheck, MoreVertical } from 'lucide-react';
+import { Search, MessageSquarePlus, Check, CheckCheck, MoreVertical, Users } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import CreateGroupModal from './CreateGroupModal';
 
 interface SidebarProps {
-  onSelectChat: (chatId: string, recipient: any) => void;
+  onSelectChat: (chat: any) => void;
   activeChatId: string | null;
 }
 
@@ -17,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'favorites'>('all');
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
 
   // Load existing chats with real-time presence and unread logic
   useEffect(() => {
@@ -31,6 +33,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       try {
         const chatList = await Promise.all(snapshot.docs.map(async (chatDoc) => {
           const data = chatDoc.data();
+          if (data.isGroup) {
+            return { id: chatDoc.id, ...data };
+          }
           const recipientUid = data.participants.find((p: string) => p !== user?.uid);
           
           if (!recipientUid) return null;
@@ -119,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
     const existingChat = chats.find(chat => chat.participants.includes(recipient.uid));
     
     if (existingChat) {
-      onSelectChat(existingChat.id, recipient);
+      onSelectChat(existingChat);
       setSearchResults([]);
       setSearchTerm('');
       return;
@@ -137,7 +142,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       isFavorite: false
     }, { merge: true });
 
-    onSelectChat(chatId, recipient);
+    onSelectChat({
+      id: chatId,
+      participants: [user.uid, recipient.uid],
+      recipient
+    });
+
     setSearchResults([]);
     setSearchTerm('');
   };
@@ -175,7 +185,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
           <span style={{ fontWeight: 600 }}>Chats</span>
         </div>
         <div className="header-actions">
-          <button className="action-btn" title="New Chat"><MessageSquarePlus size={20} /></button>
+          <button className="action-btn" title="New Chat" onClick={() => setActiveFilter('all')}><MessageSquarePlus size={20} /></button>
+          <button className="action-btn" title="New Group" onClick={() => setShowCreateGroup(true)}><Users size={20} /></button>
           <button className="action-btn" title="Menu"><MoreVertical size={20} /></button>
         </div>
       </header>
@@ -268,23 +279,25 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
         {filteredChats.map(chat => (
           <div 
             key={chat.id} 
-            className={`chat-item ${activeChatId === chat.id ? 'active' : ''}`}
-            onClick={() => onSelectChat(chat.id, chat.recipient)}
+            className={`active-item chat-item ${activeChatId === chat.id ? 'active' : ''}`}
+            onClick={() => onSelectChat(chat)}
           >
             <div className="avatar-container">
-              <div className="avatar" style={{ background: 'var(--accent-blue)' }}>
-                {chat.recipient?.avatarUrl ? (
+              <div className="avatar" style={{ background: chat.isGroup ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
+                {chat.isGroup ? (
+                  chat.groupMetadata?.photoURL ? <img src={chat.groupMetadata.photoURL} alt="" /> : <Users size={20} />
+                ) : chat.recipient?.avatarUrl ? (
                   <img src={chat.recipient.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
                   chat.recipient?.username?.[0]?.toUpperCase() || '?'
                 )}
               </div>
-              {chat.recipient?.isOnline && <div className="online-indicator" />}
+              {!chat.isGroup && chat.recipient?.isOnline && <div className="online-indicator" />}
             </div>
             <div className="chat-info">
               <div className="chat-top">
                 <span className="chat-name">
-                  {userData?.contacts?.[chat.recipient?.uid]?.alias || chat.recipient?.username}
+                  {chat.isGroup ? chat.groupMetadata?.name : (userData?.contacts?.[chat.recipient?.uid]?.alias || chat.recipient?.username)}
                 </span>
                 <span className="chat-time">{formatTime(chat.updatedAt)}</span>
               </div>
@@ -301,6 +314,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
           </div>
         ))}
       </div>
+
+      {showCreateGroup && (
+        <CreateGroupModal 
+          onClose={() => setShowCreateGroup(false)} 
+          onGroupCreated={(groupData) => onSelectChat(groupData)}
+        />
+      )}
     </aside>
   );
 };

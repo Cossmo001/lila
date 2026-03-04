@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck } from 'lucide-react';
+import { Check, CheckCheck, Trash2 } from 'lucide-react';
 import type { Message } from '../types';
 import MediaViewer from './MediaViewer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -10,9 +10,10 @@ interface MessageListProps {
     type: 'color' | 'image';
     value: string;
   };
+  onDeleteMessage?: (messageId: string) => void;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper, onDeleteMessage }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
 
@@ -23,8 +24,11 @@ const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
   const renderMessageContent = (msg: Message) => {
+    if (msg.isDeleted) {
+      return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>This message was deleted</span>;
+    }
+
     switch (msg.type) {
       case 'image':
         return (
@@ -73,21 +77,38 @@ const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper }) => {
         }}
       >
         {messages.map((msg) => (
-          <div key={msg.id} className={`message ${msg.sender}`}>
-            <div className="message-content">
-              {renderMessageContent(msg)}
+            <div className={`message ${msg.sender} ${msg.senderId === 'system' ? 'system' : ''}`}>
+              <div className="message-content">
+                {msg.senderId !== 'system' && msg.sender === 'them' && msg.senderName && (
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>
+                    {msg.senderName}
+                  </div>
+                )}
+                {renderMessageContent(msg)}
               <div className="message-time">
                 {formatTime(msg.timestamp)}
                 {msg.sender === 'me' && (
-                  <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
-                    {msg.read ? (
-                      <CheckCheck size={14} color="var(--accent)" />
-                    ) : msg.delivered ? (
-                      <CheckCheck size={14} color="var(--text-time)" />
-                    ) : (
-                      <Check size={14} color="var(--text-time)" />
+                  <>
+                    <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
+                      {msg.read ? (
+                        <CheckCheck size={14} color="var(--accent)" />
+                      ) : msg.delivered ? (
+                        <CheckCheck size={14} color="var(--text-time)" />
+                      ) : (
+                        <Check size={14} color="var(--text-time)" />
+                      )}
+                    </div>
+                    {!msg.isDeleted && (new Date().getTime() - (msg.timestamp?.getTime() || 0)) < 43200000 && (
+                      <button 
+                        className="delete-msg-btn"
+                        onClick={() => onDeleteMessage?.(msg.id)}
+                        title="Delete for everyone"
+                        style={{ background: 'none', border: 'none', padding: '0 0 0 8px', color: 'var(--text-time)', cursor: 'pointer', display: 'inline-flex', verticalAlign: 'middle' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             </div>

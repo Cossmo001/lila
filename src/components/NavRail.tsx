@@ -1,10 +1,10 @@
 import React from 'react';
-import { MessageSquare, Phone, Users, Settings } from 'lucide-react';
+import { MessageSquare, Phone, Users, Settings, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface NavRailProps {
-  activeView: 'chats' | 'calls' | 'settings';
-  onSetActiveView: (view: 'chats' | 'calls' | 'settings') => void;
+  activeView: 'chats' | 'calls' | 'settings' | 'admin';
+  onSetActiveView: (view: 'chats' | 'calls' | 'settings' | 'admin') => void;
   unreadCount?: number;
 }
 
@@ -43,6 +43,16 @@ const NavRail: React.FC<NavRailProps> = ({ activeView, onSetActiveView, unreadCo
           <Settings size={26} />
           <span className="mobile-label">Settings</span>
         </div>
+        {userData?.isAdmin && (
+          <div 
+            className={`nav-item ${activeView === 'admin' ? 'active' : ''}`} 
+            onClick={() => onSetActiveView('admin')}
+            title="Admin Portal"
+          >
+            <ShieldAlert size={26} />
+            <span className="mobile-label">Admin</span>
+          </div>
+        )}
       </div>
       <div className="nav-bottom">
         <div className="nav-item profile-item" title="Profile">

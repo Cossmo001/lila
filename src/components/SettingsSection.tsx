@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon, Image as ImageIcon } from 'lucide-react';
+import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon, Image as ImageIcon, MessageCircle, UserX } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 
-type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats' | 'wallpaper';
+import FeedbackSection from './FeedbackSection';
+
+type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats' | 'wallpaper' | 'feedback';
 
 const SettingsSection: React.FC = () => {
-  const { user, userData, updateProfile } = useAuth();
+  const { user, userData, updateProfile, unblockUser } = useAuth();
   const { requestNativePermission } = useNotification();
   const [subView, setSubView] = useState<SubView>('main');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -188,6 +190,14 @@ const SettingsSection: React.FC = () => {
           </div>
           <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
         </div>
+        <div className="settings-item" onClick={() => setSubView('feedback')}>
+          <MessageCircle size={20} className="settings-icon" />
+          <div className="settings-text">
+            <span>Help & Feedback</span>
+            <p>Feedback, support & contact us</p>
+          </div>
+          <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
+        </div>
         <hr className="section-divider" />
         <div className="settings-item logout" onClick={() => auth.signOut()}>
           <LogOut size={20} className="settings-icon" />
@@ -247,6 +257,29 @@ const SettingsSection: React.FC = () => {
           <p>Everyone</p>
         </div>
         <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
+      </div>
+      
+      <div className="section-title" style={{ marginTop: '20px' }}>Blocked Contacts</div>
+      <div className="settings-list">
+        {userData?.blockedUsers && Object.keys(userData.blockedUsers).length > 0 ? (
+          Object.keys(userData.blockedUsers).map(uid => (
+            <div key={uid} className="settings-item">
+              <UserX size={20} className="settings-icon" color="#ff4b4b" />
+              <div className="settings-text">
+                <span>{userData.contacts?.[uid]?.alias || uid}</span>
+              </div>
+              <button 
+                onClick={() => unblockUser(uid)}
+                className="wa-btn-secondary"
+                style={{ marginLeft: 'auto', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Unblock
+              </button>
+            </div>
+          ))
+        ) : (
+          <p style={{ padding: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No blocked contacts</p>
+        )}
       </div>
     </div>
   );
@@ -435,6 +468,7 @@ const SettingsSection: React.FC = () => {
         {subView === 'notifications' && renderNotifications()}
         {subView === 'chats' && renderChats()}
         {subView === 'wallpaper' && renderWallpaperSelection()}
+        {subView === 'feedback' && <FeedbackSection />}
       </div>
     </div>
   );

@@ -4,9 +4,13 @@ export interface Message {
   type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link';
   mediaUrl?: string;
   sender: 'me' | 'them';
+  senderId: string;
+  senderName?: string;
+  senderAvatar?: string;
   timestamp: Date;
   read: boolean;
   delivered: boolean;
+  isDeleted?: boolean;
 }
 
 export interface User {
@@ -23,5 +27,13 @@ export interface Chat {
   updatedAt: Date;
   unreadCount?: number;
   isFavorite?: boolean;
+  isGroup?: boolean;
+  groupMetadata?: {
+    name: string;
+    photoURL?: string;
+    description?: string;
+    createdBy: string;
+    admins: string[];
+  };
   recipient: User;
 }

@@ -11,7 +11,8 @@ interface ContactProfileModalProps {
 }
 
 const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chatId, onClose }) => {
-  const { userData, setContactAlias, updateProfile } = useAuth();
+  const { userData, setContactAlias, updateProfile, blockUser, unblockUser } = useAuth();
+  const isBlocked = userData?.blockedUsers?.[contact.uid] || false;
   const currentAlias = userData?.contacts?.[contact.uid]?.alias || '';
   const [alias, setAlias] = useState(currentAlias);
   const [isEditingAlias, setIsEditingAlias] = useState(false);
@@ -300,9 +301,13 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
 
         {/* Actions */}
         <section className="wa-section" style={{ padding: '10px 0' }}>
-          <div className="wa-danger-item" style={{ padding: '16px 30px' }}>
+          <div 
+            className="wa-danger-item" 
+            style={{ padding: '16px 30px', cursor: 'pointer' }}
+            onClick={() => isBlocked ? unblockUser(contact.uid) : blockUser(contact.uid)}
+          >
             <Shield size={20} />
-            <span style={{ fontWeight: 500 }}>Block {contact.username}</span>
+            <span style={{ fontWeight: 500 }}>{isBlocked ? `Unblock ${contact.username}` : `Block ${contact.username}`}</span>
           </div>
           <div className="wa-danger-item" style={{ padding: '16px 30px' }}>
             <AlertCircle size={20} />

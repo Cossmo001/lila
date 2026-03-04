@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import type { Message } from '../types';
@@ -28,9 +28,11 @@ export const useChat = (chatId: string | null, userId: string | null) => {
           type: data.type || 'text',
           mediaUrl: data.mediaUrl,
           sender: data.senderId === userId ? 'me' : 'them',
+          senderId: data.senderId,
           timestamp: data.timestamp?.toDate() || new Date(),
           read: data.read || false,
           delivered: data.delivered || false,
+          isDeleted: data.isDeleted || false
         } as Message;
       });
       setMessages(msgs);
@@ -75,6 +77,11 @@ export const useChat = (chatId: string | null, userId: string | null) => {
   const sendMessage = useCallback(async (text: string, type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link' = 'text', mediaUrl?: string) => {
     if (!chatId || !userId) return;
 
+    // We need userData for senderName and senderAvatar
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    const userData = userSnap.exists() ? userSnap.data() : null;
+
     // Detect if text contains a link and mark it
     let messageType = type;
     if (type === 'text' && /https?:\/\/[^\s]+/.test(text)) {
@@ -86,6 +93,8 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       type: messageType,
       mediaUrl: mediaUrl || null,
       senderId: userId,
+      senderName: userData?.username || 'Unknown',
+      senderAvatar: userData?.avatarUrl || null,
       timestamp: serverTimestamp(),
       read: false,
       delivered: false,
@@ -101,6 +110,7 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       lastMessage: {
         text: lastMsgText,
         senderId: userId,
+        senderName: userData?.username || 'Unknown',
         read: false,
         delivered: false,
       },
@@ -137,7 +147,51 @@ export const useChat = (chatId: string | null, userId: string | null) => {
   }, [chatId, userId, sendMessage]);
 
 
-  return { messages, sendMessage, sendMediaMessage };
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!chatId || !userId) return;
+
+    const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
+    const msgSnap = await getDoc(msgRef);
+
+    if (!msgSnap.exists()) return;
+
+    const data = msgSnap.data();
+    if (data.senderId !== userId) {
+      alert("You can only delete your own messages.");
+      return;
+    }
+
+    const timestamp = data.timestamp?.toDate() || new Date();
+    const now = new Date();
+    const diffInHours = (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours > 12) {
+      alert("Messages can only be deleted within 12 hours of sending.");
+      return;
+    }
+
+    const batch = writeBatch(db);
+    batch.update(msgRef, {
+      text: "This message was deleted",
+      type: 'text',
+      mediaUrl: null,
+      isDeleted: true
+    });
+
+    // If this was the last message, update the chat's lastMessage
+    const chatRef = doc(db, 'chats', chatId);
+    const chatSnap = await getDoc(chatRef);
+    if (chatSnap.exists() && chatSnap.data().lastMessage?.text === data.text) {
+      batch.update(chatRef, {
+        'lastMessage.text': "This message was deleted",
+        'lastMessage.isDeleted': true
+      });
+    }
+
+    await batch.commit();
+  }, [chatId, userId]);
+
+  return { messages, sendMessage, sendMediaMessage, deleteMessage };
 };
 
 

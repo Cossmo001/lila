@@ -9,6 +9,8 @@ interface AuthContextType {
   loading: boolean;
   updateProfile: (data: Partial<any>) => Promise<void>;
   setContactAlias: (contactUid: string, alias: string) => Promise<void>;
+  blockUser: (contactUid: string) => Promise<void>;
+  unblockUser: (contactUid: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -17,6 +19,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   updateProfile: async () => {},
   setContactAlias: async () => {},
+  blockUser: async () => {},
+  unblockUser: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -109,12 +113,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const blockUser = async (contactUid: string) => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      [`blockedUsers.${contactUid}`]: true,
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  const unblockUser = async (contactUid: string) => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      [`blockedUsers.${contactUid}`]: null,
+      updatedAt: serverTimestamp()
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, userData, loading, updateProfile, setContactAlias }}>
+    <AuthContext.Provider value={{ user, userData, loading, updateProfile, setContactAlias, blockUser, unblockUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-

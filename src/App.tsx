@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MoreVertical, Search, Phone, Video, MessageSquare, ShieldCheck, Laptop, Settings, ChevronLeft } from 'lucide-react';
+import { MoreVertical, Search, Phone, Video, MessageSquare, ShieldCheck, Laptop, Settings, ChevronLeft, ShieldAlert, Users } from 'lucide-react';
 import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import MessageList from './components/MessageList';
@@ -12,6 +12,8 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ContactProfileModal from './components/ContactProfileModal';
 import CallOverlay from './components/CallOverlay';
+import GroupInfoModal from './components/GroupInfoModal';
+import AdminPortal from './components/AdminPortal';
 import { useAuth } from './context/AuthContext';
 import { useAgora } from './context/AgoraContext';
 import { useNotification } from './context/NotificationContext';
@@ -23,11 +25,11 @@ function App() {
   const { user, userData, loading } = useAuth();
   const { join, leave } = useAgora();
   const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, requestNativePermission } = useNotification();
-  const [activeChat, setActiveChat] = useState<{ id: string; recipient: any } | null>(null);
+  const [activeChat, setActiveChat] = useState<any | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
-  const { messages, sendMessage: originalSendMessage, sendMediaMessage } = useChat(activeChat?.id || null, user?.uid || null);
+  const { messages, sendMessage: originalSendMessage, sendMediaMessage, deleteMessage } = useChat(activeChat?.id || null, user?.uid || null);
   const [isRegistering, setIsRegistering] = useState(false);
-  const [currentView, setCurrentView] = useState<'chats' | 'calls' | 'settings'>('chats');
+  const [currentView, setCurrentView] = useState<'chats' | 'calls' | 'settings' | 'admin'>('chats');
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeCall, setActiveCall] = useState<{
@@ -111,7 +113,8 @@ function App() {
             lastMsg.senderId !== user.uid && 
             lastMsg.read === false &&
             activeChat?.id !== change.doc.id &&
-            !userData?.settings?.muted?.[lastMsg.senderId]
+            !userData?.settings?.muted?.[lastMsg.senderId] &&
+            !userData?.blockedUsers?.[lastMsg.senderId]
           ) {
             // Play Tone if enabled
             if (userData?.settings?.notifications?.tones !== false) {
@@ -176,6 +179,13 @@ function App() {
       if (!snapshot.empty && !activeCall) {
         const callDoc = snapshot.docs[0];
         const data = callDoc.data();
+        
+        // Block check
+        if (userData?.blockedUsers?.[data.callerId]) {
+          console.log("Blocking incoming call from blocked user:", data.callerId);
+          return;
+        }
+
         setActiveCall({
           id: callDoc.id,
           status: 'ringing',
@@ -334,7 +344,7 @@ function App() {
     if (currentView === 'chats') {
       return (
         <Sidebar 
-          onSelectChat={(id, recipient) => setActiveChat({ id, recipient })} 
+          onSelectChat={(chat) => setActiveChat(chat)} 
           activeChatId={activeChat?.id || null} 
         />
       );
@@ -344,6 +354,7 @@ function App() {
       initiateCall(type);
     }} />;
     if (currentView === 'settings') return <SettingsSection />;
+    if (currentView === 'admin') return <AdminPortal />;
     return null;
   };
 
@@ -363,32 +374,42 @@ function App() {
                     <ChevronLeft size={24} />
                   </div>
                   <div className="header-left" onClick={() => setShowProfileModal(!showProfileModal)} style={{ cursor: 'pointer' }}>
-                    <div className="avatar" style={{ background: 'var(--accent-blue)' }}>
-                      {recipientData?.avatarUrl ? (
-                        <img src={recipientData.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    <div className="avatar" style={{ background: activeChat.isGroup ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
+                      {activeChat.isGroup ? (
+                        activeChat.groupMetadata?.photoURL ? (
+                          <img src={activeChat.groupMetadata.photoURL} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : <Users size={20} />
                       ) : (
-                        recipientData?.username?.[0]?.toUpperCase() || '?'
+                        recipientData?.avatarUrl ? (
+                          <img src={recipientData.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : (
+                          recipientData?.username?.[0]?.toUpperCase() || '?'
+                        )
                       )}
                     </div>
                     <div className="header-info">
                       <h1 style={{ fontSize: '1rem', fontWeight: 600 }}>
-                        {userData?.contacts?.[recipientData?.uid]?.alias || recipientData?.username || 'Unknown'}
+                        {activeChat.isGroup ? activeChat.groupMetadata?.name : (userData?.contacts?.[recipientData?.uid]?.alias || recipientData?.username || 'Unknown')}
                       </h1>
-                      <p style={{ fontSize: '0.75rem', color: recipientData?.isOnline ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                        {recipientData?.isOnline ? 'online' : formatLastSeen(recipientData?.lastSeen)}
+                      <p style={{ fontSize: '0.75rem', color: (activeChat.isGroup || recipientData?.isOnline) ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                        {activeChat.isGroup ? `${activeChat.participants.length} members` : (recipientData?.isOnline ? 'online' : formatLastSeen(recipientData?.lastSeen))}
                       </p>
                     </div>
                   </div>
                   <div className="header-actions">
-                    <button className="action-btn" onClick={() => initiateCall('video')}><Video size={20} /></button>
-                    <button className="action-btn" onClick={() => initiateCall('audio')}><Phone size={20} /></button>
+                    {!activeChat.isGroup && (
+                      <>
+                        <button className="action-btn" onClick={() => initiateCall('video')}><Video size={20} /></button>
+                        <button className="action-btn" onClick={() => initiateCall('audio')}><Phone size={20} /></button>
+                      </>
+                    )}
                     <div className="divider" style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 8px' }}></div>
                     <button className="action-btn"><Search size={20} /></button>
                     <button className="action-btn"><MoreVertical size={20} /></button>
                   </div>
                 </header>
                 
-                <MessageList messages={messages} wallpaper={userData?.settings?.chats?.wallpaper} />
+                <MessageList messages={messages} wallpaper={userData?.settings?.chats?.wallpaper} onDeleteMessage={deleteMessage} />
                 
                 <ChatInput onSendMessage={sendMessage} onSendMedia={sendMediaMessage} />
               </>
@@ -417,7 +438,9 @@ function App() {
               {/* Common background for non-chat views if no item is selected */}
               <div className="empty-content">
                  <div className="welcome-icon">
-                  {currentView === 'calls' ? <Phone size={80} strokeWidth={1} /> : <Settings size={80} strokeWidth={1} />}
+                  {currentView === 'calls' ? <Phone size={80} strokeWidth={1} /> : 
+                   currentView === 'settings' ? <Settings size={80} strokeWidth={1} /> :
+                   <ShieldAlert size={80} strokeWidth={1} />}
                 </div>
                 <h1 style={{ textTransform: 'capitalize' }}>{currentView}</h1>
                 <p>Selection will appear here.</p>
@@ -426,13 +449,20 @@ function App() {
           )}
         </div>
 
-        {showProfileModal && recipientData && activeChat && (
+        {showProfileModal && activeChat && (
+        activeChat.isGroup ? (
+          <GroupInfoModal 
+            group={activeChat} 
+            onClose={() => setShowProfileModal(false)} 
+          />
+        ) : recipientData && (
           <ContactProfileModal 
             contact={recipientData} 
             chatId={activeChat.id}
             onClose={() => setShowProfileModal(false)} 
           />
-        )}
+        )
+      )}
       </div>
 
       {activeCall && (
