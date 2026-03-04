@@ -58,7 +58,7 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
     <div className="auth-container">
       <div className="auth-card">
         <h1>Create Account</h1>
-        <p>Join Lila Chat and connect with friends.</p>
+        <p>Join Kadi Chat and connect with friends.</p>
         <form onSubmit={handleRegister}>
           <div className="input-group">
             <label>Username</label>

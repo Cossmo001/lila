@@ -112,7 +112,7 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, onCl
         {/* About Section */}
         <section className="wa-section">
           <span className="wa-label">About</span>
-          <p className="wa-value" style={{ color: 'var(--text-main)' }}>Hey there! I am using Lila.</p>
+          <p className="wa-value" style={{ color: 'var(--text-main)' }}>Hey there! I am using Kadi.</p>
           <p className="wa-date">Jan 12, 2024</p>
         </section>
 

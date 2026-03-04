@@ -11,7 +11,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'Lila Chat',
-        short_name: 'Lila',
+        short_name: 'Kadi',
         description: 'A premium blue-themed chat application',
         theme_color: '#2563eb',
         icons: [

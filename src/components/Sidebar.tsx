@@ -184,7 +184,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
                 </div>
                 <div className="chat-info">
                   <div className="chat-name">{result.username}</div>
-                  <div className="chat-last-msg">Lila user</div>
+                  <div className="chat-last-msg">Kadi user</div>
                 </div>
               </div>
             ))}

@@ -281,7 +281,7 @@ function App() {
   };
 
   if (loading) {
-    return <div className="loading-screen">LILA</div>;
+    return <div className="loading-screen">KADI</div>;
   }
 
   if (!user) {
@@ -366,8 +366,8 @@ function App() {
                   <div className="welcome-icon">
                     <MessageSquare size={80} strokeWidth={1} />
                   </div>
-                  <h1>Lila Chat for Windows</h1>
-                  <p>Send and receive messages without keeping your phone online.<br/>Use Lila Chat on up to 4 linked devices and 1 phone at the same time.</p>
+                  <h1>Kadi Chat for Windows</h1>
+                  <p>Send and receive messages without keeping your phone online.<br/>Use Kadi Chat on up to 4 linked devices and 1 phone at the same time.</p>
                   
                   <div className="encryption-notice">
                     <ShieldCheck size={14} />
@@ -376,7 +376,7 @@ function App() {
                 </div>
                 <div className="empty-footer">
                   <Laptop size={16} />
-                  <span>Lila Desktop App</span>
+                  <span>Kadi Desktop App</span>
                 </div>
               </div>
             )

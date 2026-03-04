@@ -77,12 +77,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return permission === 'granted';
   }, []);
 
-  const sendNativeNotification = useCallback((title: string, options?: NotificationOptions) => {
+  const sendNativeNotification = useCallback(async (title: string, options?: NotificationOptions) => {
     if (Notification.permission === 'granted' && document.hidden) {
-      new Notification(title, {
-        icon: '/pwa-192x192.png',
-        ...options
-      });
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification(title, {
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          vibrate: [200, 100, 200],
+          ...options
+        } as any);
+      } catch (err) {
+        console.error("Service Worker notification failed, falling back to window.Notification:", err);
+        // Fallback for browsers without service worker active/supported
+        new Notification(title, {
+          icon: '/pwa-192x192.png',
+          ...options
+        });
+      }
     }
   }, []);
 
