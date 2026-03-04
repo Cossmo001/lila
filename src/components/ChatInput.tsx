@@ -4,14 +4,26 @@ import { Send, Smile, Plus, Mic, Image, Video, X, Square, FileText } from 'lucid
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
   onSendMedia: (file: File, type: 'image' | 'video' | 'audio' | 'file') => void;
+  replyingTo?: any;
+  editingMessage?: any;
+  onCancelAction?: () => void;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia, replyingTo, editingMessage, onCancelAction }) => {
   const [text, setText] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.text);
+    } else {
+      setText('');
+    }
+  }, [editingMessage]);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -117,6 +129,19 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia }) => 
 
   return (
     <div className="chat-input-area" ref={attachmentsRef}>
+      {(replyingTo || editingMessage) && (
+        <div className="input-action-preview">
+          <div className="preview-content">
+            <span className="action-label">
+              {replyingTo ? `Replying to ${replyingTo.senderName}` : 'Editing message'}
+            </span>
+            <p className="preview-text">{replyingTo ? replyingTo.text : editingMessage.text}</p>
+          </div>
+          <button className="cancel-action-btn" onClick={onCancelAction}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
       <div className={`attachments-menu ${showAttachments ? 'active' : ''}`}>
         <button className="attachment-item" onClick={() => docInputRef.current?.click()} disabled={isUploading}>
           <div className="icon-circle" style={{ background: '#5f66cd' }}><FileText size={20} /></div>

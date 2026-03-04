@@ -1,10 +1,10 @@
 import React from 'react';
-import { MessageSquare, Phone, Users, Settings, ShieldAlert } from 'lucide-react';
+import { MessageSquare, Phone, Users, Settings, ShieldAlert, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface NavRailProps {
-  activeView: 'chats' | 'calls' | 'settings' | 'admin';
-  onSetActiveView: (view: 'chats' | 'calls' | 'settings' | 'admin') => void;
+  activeView: 'chats' | 'calls' | 'settings' | 'admin' | 'feedback';
+  onSetActiveView: (view: 'chats' | 'calls' | 'settings' | 'admin' | 'feedback') => void;
   unreadCount?: number;
 }
 
@@ -42,6 +42,14 @@ const NavRail: React.FC<NavRailProps> = ({ activeView, onSetActiveView, unreadCo
         >
           <Settings size={26} />
           <span className="mobile-label">Settings</span>
+        </div>
+        <div 
+          className={`nav-item ${activeView === 'feedback' ? 'active' : ''}`} 
+          onClick={() => onSetActiveView('feedback')}
+          title="Feedback"
+        >
+          <MessageCircle size={26} />
+          <span className="mobile-label">Feedback</span>
         </div>
         {userData?.isAdmin && (
           <div 

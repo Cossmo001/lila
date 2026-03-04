@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, Trash2 } from 'lucide-react';
+import { Check, CheckCheck } from 'lucide-react';
 import type { Message } from '../types';
 import MediaViewer from './MediaViewer';
 import CustomAudioPlayer from './CustomAudioPlayer';
+import MessageContextMenu from './MessageContextMenu';
 
 interface MessageListProps {
   messages: Message[];
@@ -11,11 +12,23 @@ interface MessageListProps {
     value: string;
   };
   onDeleteMessage?: (messageId: string) => void;
+  onReplyMessage?: (message: Message) => void;
+  onEditMessage?: (message: Message) => void;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper, onDeleteMessage }) => {
+const MessageList: React.FC<MessageListProps> = ({ 
+  messages, 
+  wallpaper, 
+  onDeleteMessage,
+  onReplyMessage,
+  onEditMessage
+}) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const longPressTimer = useRef<any>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -24,6 +37,40 @@ const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper, onDelete
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleContextMenu = (e: React.MouseEvent, message: Message) => {
+    e.preventDefault();
+    if (isSelectionMode) return;
+    setContextMenu({ x: e.clientX, y: e.clientY, message });
+  };
+
+  const handleTouchStart = (message: Message) => {
+    longPressTimer.current = setTimeout(() => {
+      // Trigger selection mode or context menu on long press
+      if (!isSelectionMode) {
+        // Find rough touch coordinates or just use center
+        setContextMenu({ x: window.innerWidth / 2, y: window.innerHeight / 2, message });
+      }
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  const toggleSelectMessage = (messageId: string) => {
+    const newSelected = new Set(selectedMessages);
+    if (newSelected.has(messageId)) {
+      newSelected.delete(messageId);
+      if (newSelected.size === 0) setIsSelectionMode(false);
+    } else {
+      newSelected.add(messageId);
+      setIsSelectionMode(true);
+    }
+    setSelectedMessages(newSelected);
+  };
   const renderMessageContent = (msg: Message) => {
     if (msg.isDeleted) {
       return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>This message was deleted</span>;
@@ -77,39 +124,56 @@ const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper, onDelete
         }}
       >
         {messages.map((msg) => (
-            <div className={`message ${msg.sender} ${msg.senderId === 'system' ? 'system' : ''}`}>
-              <div className="message-content">
-                {msg.senderId !== 'system' && msg.sender === 'them' && msg.senderName && (
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>
-                    {msg.senderName}
-                  </div>
-                )}
-                {renderMessageContent(msg)}
-              <div className="message-time">
-                {formatTime(msg.timestamp)}
-                {msg.sender === 'me' && (
-                  <>
-                    <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
-                      {msg.read ? (
-                        <CheckCheck size={14} color="var(--accent)" />
-                      ) : msg.delivered ? (
-                        <CheckCheck size={14} color="var(--text-time)" />
-                      ) : (
-                        <Check size={14} color="var(--text-time)" />
-                      )}
+            <div 
+              key={msg.id}
+              className={`message-wrapper ${selectedMessages.has(msg.id) ? 'selected' : ''}`}
+              onClick={() => isSelectionMode && toggleSelectMessage(msg.id)}
+            >
+              {isSelectionMode && (
+                <div className="selection-checkbox">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedMessages.has(msg.id)} 
+                    onChange={() => toggleSelectMessage(msg.id)} 
+                  />
+                </div>
+              )}
+              <div 
+                className={`message ${msg.sender} ${msg.senderId === 'system' ? 'system' : ''}`}
+                onContextMenu={(e) => handleContextMenu(e, msg)}
+                onTouchStart={() => handleTouchStart(msg)}
+                onTouchEnd={handleTouchEnd}
+              >
+                <div className="message-content">
+                  {msg.senderId !== 'system' && msg.sender === 'them' && msg.senderName && (
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>
+                      {msg.senderName}
                     </div>
-                    {!msg.isDeleted && (new Date().getTime() - (msg.timestamp?.getTime() || 0)) < 43200000 && (
-                      <button 
-                        className="delete-msg-btn"
-                        onClick={() => onDeleteMessage?.(msg.id)}
-                        title="Delete for everyone"
-                        style={{ background: 'none', border: 'none', padding: '0 0 0 8px', color: 'var(--text-time)', cursor: 'pointer', display: 'inline-flex', verticalAlign: 'middle' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </>
-                )}
+                  )}
+                  {msg.replyTo && (
+                    <div className="reply-preview">
+                      <span className="reply-sender">{msg.replyTo.senderName}</span>
+                      <p className="reply-text">{msg.replyTo.text}</p>
+                    </div>
+                  )}
+                  {renderMessageContent(msg)}
+                <div className="message-time">
+                  {msg.isEdited && <span className="edited-tag">edited</span>}
+                  {formatTime(msg.timestamp)}
+                  {msg.sender === 'me' && (
+                    <>
+                      <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
+                        {msg.read ? (
+                          <CheckCheck size={14} color="var(--accent)" />
+                        ) : msg.delivered ? (
+                          <CheckCheck size={14} color="var(--text-time)" />
+                        ) : (
+                          <Check size={14} color="var(--text-time)" />
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -122,6 +186,20 @@ const MessageList: React.FC<MessageListProps> = ({ messages, wallpaper, onDelete
           url={activeMedia.url} 
           type={activeMedia.type} 
           onClose={() => setActiveMedia(null)} 
+        />
+      )}
+
+      {contextMenu && (
+        <MessageContextMenu 
+          x={contextMenu.x}
+          y={contextMenu.y}
+          isMyMessage={contextMenu.message.sender === 'me'}
+          isDeleted={contextMenu.message.isDeleted}
+          onClose={() => setContextMenu(null)}
+          onReply={() => onReplyMessage?.(contextMenu.message)}
+          onEdit={() => onEditMessage?.(contextMenu.message)}
+          onDelete={() => onDeleteMessage?.(contextMenu.message.id)}
+          onSelect={() => toggleSelectMessage(contextMenu.message.id)}
         />
       )}
     </>

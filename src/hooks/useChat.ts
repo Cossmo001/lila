@@ -74,7 +74,7 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     return unsubscribe;
   }, [chatId, userId]);
 
-  const sendMessage = useCallback(async (text: string, type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link' = 'text', mediaUrl?: string) => {
+  const sendMessage = useCallback(async (text: string, type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link' = 'text', mediaUrl?: string, replyTo?: Message['replyTo']) => {
     if (!chatId || !userId) return;
 
     // We need userData for senderName and senderAvatar
@@ -88,7 +88,7 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       messageType = 'link';
     }
 
-    const messageData = {
+    const messageData: any = {
       text,
       type: messageType,
       mediaUrl: mediaUrl || null,
@@ -98,7 +98,12 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       timestamp: serverTimestamp(),
       read: false,
       delivered: false,
+      isDeleted: false
     };
+
+    if (replyTo) {
+      messageData.replyTo = replyTo;
+    }
 
     // Add message to subcollection
     await addDoc(collection(db, 'chats', chatId, 'messages'), messageData);
@@ -147,6 +152,39 @@ export const useChat = (chatId: string | null, userId: string | null) => {
   }, [chatId, userId, sendMessage]);
 
 
+  const editMessage = useCallback(async (messageId: string, newText: string) => {
+    if (!chatId || !userId) return;
+
+    const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
+    const msgSnap = await getDoc(msgRef);
+
+    if (!msgSnap.exists()) return;
+
+    const data = msgSnap.data();
+    if (data.senderId !== userId) {
+      alert("You can only edit your own messages.");
+      return;
+    }
+
+    const batch = writeBatch(db);
+    batch.update(msgRef, {
+      text: newText,
+      isEdited: true,
+      editedAt: serverTimestamp()
+    });
+
+    // If this was the last message, update the chat's lastMessage
+    const chatRef = doc(db, 'chats', chatId);
+    const chatSnap = await getDoc(chatRef);
+    if (chatSnap.exists() && chatSnap.data().lastMessage?.text === data.text) {
+      batch.update(chatRef, {
+        'lastMessage.text': newText
+      });
+    }
+
+    await batch.commit();
+  }, [chatId, userId]);
+
   const deleteMessage = useCallback(async (messageId: string) => {
     if (!chatId || !userId) return;
 
@@ -191,7 +229,7 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     await batch.commit();
   }, [chatId, userId]);
 
-  return { messages, sendMessage, sendMediaMessage, deleteMessage };
+  return { messages, sendMessage, sendMediaMessage, editMessage, deleteMessage };
 };
 
 

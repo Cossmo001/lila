@@ -10,7 +10,14 @@ export interface Message {
   timestamp: Date;
   read: boolean;
   delivered: boolean;
-  isDeleted?: boolean;
+  isDeleted: boolean;
+  isEdited?: boolean;
+  editedAt?: Date;
+  replyTo?: {
+    messageId: string;
+    text: string;
+    senderName: string;
+  };
 }
 
 export interface User {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MoreVertical, Search, Phone, Video, MessageSquare, ShieldCheck, Laptop, Settings, ChevronLeft, ShieldAlert, Users } from 'lucide-react';
+import { MoreVertical, Search, Phone, Video, MessageSquare, ShieldCheck, Laptop, Settings, ChevronLeft, ShieldAlert, Users, MessageCircle } from 'lucide-react';
 import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import MessageList from './components/MessageList';
@@ -18,6 +18,7 @@ import { useAuth } from './context/AuthContext';
 import { useAgora } from './context/AgoraContext';
 import { useNotification } from './context/NotificationContext';
 import { useChat } from './hooks/useChat';
+import FeedbackSection from './components/FeedbackSection';
 import { addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import './index.css';
 
@@ -27,11 +28,13 @@ function App() {
   const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, requestNativePermission } = useNotification();
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
-  const { messages, sendMessage: originalSendMessage, sendMediaMessage, deleteMessage } = useChat(activeChat?.id || null, user?.uid || null);
+  const { messages, sendMessage: originalSendMessage, sendMediaMessage, deleteMessage, editMessage } = useChat(activeChat?.id || null, user?.uid || null);
   const [isRegistering, setIsRegistering] = useState(false);
-  const [currentView, setCurrentView] = useState<'chats' | 'calls' | 'settings' | 'admin'>('chats');
+  const [currentView, setCurrentView] = useState<'chats' | 'calls' | 'settings' | 'admin' | 'feedback'>('chats');
   const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
+  const [editingMessage, setEditingMessage] = useState<any | null>(null);
   const [activeCall, setActiveCall] = useState<{
     id: string;
     status: 'ringing' | 'connecting' | 'active';
@@ -255,7 +258,20 @@ function App() {
   }, [activeCall?.id, join, leave]);
 
   const sendMessage = async (text: string) => {
-    await originalSendMessage(text);
+    if (editingMessage) {
+      await editMessage(editingMessage.id, text);
+      setEditingMessage(null);
+    } else {
+      const replyData = replyingTo ? {
+        messageId: replyingTo.id,
+        text: replyingTo.text,
+        senderName: replyingTo.senderName
+      } : undefined;
+      
+      await originalSendMessage(text, 'text', undefined, replyData);
+      setReplyingTo(null);
+    }
+    
     if (userData?.settings?.notifications?.tones !== false) {
       playTone('outgoing');
     }
@@ -354,6 +370,7 @@ function App() {
       initiateCall(type);
     }} />;
     if (currentView === 'settings') return <SettingsSection />;
+    if (currentView === 'feedback') return <FeedbackSection />;
     if (currentView === 'admin') return <AdminPortal />;
     return null;
   };
@@ -409,9 +426,24 @@ function App() {
                   </div>
                 </header>
                 
-                <MessageList messages={messages} wallpaper={userData?.settings?.chats?.wallpaper} onDeleteMessage={deleteMessage} />
+                <MessageList 
+                  messages={messages} 
+                  wallpaper={userData?.settings?.chats?.wallpaper} 
+                  onDeleteMessage={deleteMessage}
+                  onReplyMessage={(msg) => setReplyingTo(msg)}
+                  onEditMessage={(msg) => setEditingMessage(msg)}
+                />
                 
-                <ChatInput onSendMessage={sendMessage} onSendMedia={sendMediaMessage} />
+                <ChatInput 
+                  onSendMessage={sendMessage} 
+                  onSendMedia={sendMediaMessage} 
+                  replyingTo={replyingTo}
+                  editingMessage={editingMessage}
+                  onCancelAction={() => {
+                    setReplyingTo(null);
+                    setEditingMessage(null);
+                  }}
+                />
               </>
             ) : (
               <div className="empty-state-container">
@@ -475,6 +507,15 @@ function App() {
           onAccept={acceptCall}
         />
       )}
+
+      {/* Floating Feedback Button for Mobile */}
+      <button 
+        className="mobile-fab feedback-fab" 
+        onClick={() => setCurrentView('feedback')}
+        title="Send Feedback"
+      >
+        <MessageCircle size={24} />
+      </button>
     </div>
   );
 }

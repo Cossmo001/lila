@@ -1092,10 +1092,61 @@ body {
   gap: 20px;
   padding: 16px 0;
   color: #ff4b4b;
+  font-weight: 600;
+  color: var(--accent);
+  display: block;
+}
+
+.preview-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+
+.cancel-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
-.wa-danger-item:hover { background: rgba(255, 75, 75, 0.05); }
+/* Selection Mode */
+.message-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  transition: background 0.2s;
+}
+
+.message-wrapper.selected {
+  background: var(--accent-muted);
+}
+
+.selection-checkbox {
+  padding: 0 12px;
+}
+
+.selection-checkbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Edited Tag */
+.edited-tag {
+  font-size: 0.65rem;
+  font-style: italic;
+  opacity: 0.6;
+  margin-right: 4px;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
 
 /* Nickname (Alias) Custom Styles */
 .wa-alias-section {
@@ -2400,4 +2451,170 @@ input:checked + .slider:before {
 .color-option.active {
   border-color: var(--accent);
   box-shadow: 0 0 10px var(--accent-muted);
+}
+/* Mobile FAB */
+.mobile-fab {
+  display: none;
+  position: fixed;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  right: calc(20px + env(safe-area-inset-right, 0px));
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background-color: var(--accent);
+  color: #0b141a;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.mobile-fab:active {
+  transform: scale(0.9);
+}
+
+@media (max-width: 768px) {
+  .mobile-fab {
+    display: flex;
+  }
+  
+  /* Hide feedback tab in nav rail on mobile as we have FAB */
+  .nav-item[title="Feedback"] {
+    display: none;
+  }
+}
+
+/* Message Context Menu */
+.message-context-menu {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-context-menu button {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.message-context-menu button:hover {
+  background: var(--bg-hover);
+}
+
+.message-context-menu button.delete-option {
+  color: #ff4b4b;
+}
+
+/* Reply Preview in Bubble */
+.reply-preview {
+  background: rgba(0, 0, 0, 0.1);
+  border-left: 4px solid var(--accent);
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.reply-sender {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+  color: var(--accent);
+}
+
+.reply-text {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Input Action Preview (Above Input) */
+.input-action-preview {
+  position: absolute;
+  top: -60px;
+  left: 0;
+  right: 0;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--glass-border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  animation: slideUp 0.2s ease;
+  z-index: 50;
+}
+
+.action-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  display: block;
+}
+
+.preview-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+
+.cancel-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* Selection Mode */
+.message-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.message-wrapper.selected {
+  background: var(--accent-muted);
+}
+
+.selection-checkbox {
+  padding: 0 12px;
+}
+
+.selection-checkbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Edited Tag */
+.edited-tag {
+  font-size: 0.65rem;
+  font-style: italic;
+  opacity: 0.6;
+  margin-right: 4px;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }

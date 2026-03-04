@@ -1,13 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon, Image as ImageIcon, MessageCircle, UserX } from 'lucide-react';
+import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon, Image as ImageIcon, UserX } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 
-import FeedbackSection from './FeedbackSection';
 
-type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats' | 'wallpaper' | 'feedback';
+type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats' | 'wallpaper';
 
 const SettingsSection: React.FC = () => {
   const { user, userData, updateProfile, unblockUser } = useAuth();
@@ -187,14 +186,6 @@ const SettingsSection: React.FC = () => {
           <div className="settings-text">
             <span>Chats</span>
             <p>Theme, wallpapers, chat history</p>
-          </div>
-          <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
-        </div>
-        <div className="settings-item" onClick={() => setSubView('feedback')}>
-          <MessageCircle size={20} className="settings-icon" />
-          <div className="settings-text">
-            <span>Help & Feedback</span>
-            <p>Feedback, support & contact us</p>
           </div>
           <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
         </div>
@@ -468,7 +459,6 @@ const SettingsSection: React.FC = () => {
         {subView === 'notifications' && renderNotifications()}
         {subView === 'chats' && renderChats()}
         {subView === 'wallpaper' && renderWallpaperSelection()}
-        {subView === 'feedback' && <FeedbackSection />}
       </div>
     </div>
   );
