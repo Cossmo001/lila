@@ -113,7 +113,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (!permission) return;
 
       const currentToken = await getToken(messaging, {
-        vapidKey: '_t_aLD810RRGbX5JEvIsvOuzaOWoFvC_gu8RNa0McLU'
+        vapidKey: 'BJSWo-sUkxCDa4FhSvMn6pBy2sXXrwn41loRH3CrmUVrcXwEUvH9_fz6xbvj1RO-dt13bzdSsuWhMJ2c6wNaSOM'
       });
 
       if (currentToken) {
