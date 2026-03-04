@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MoreVertical, Search, Phone, Video, MessageSquare, ShieldCheck, Laptop, Settings, ChevronLeft, ShieldAlert, Users, MessageCircle } from 'lucide-react';
+import { MoreVertical, Phone, Video, MessageSquare, ShieldCheck, Laptop, Settings, ChevronLeft, ShieldAlert, Users, MessageCircle, X } from 'lucide-react';
 import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import MessageList from './components/MessageList';
@@ -439,7 +439,7 @@ function App() {
                       </>
                     )}
                     <div className="divider" style={{ width: '1px', height: '20px', background: 'var(--glass-border)', margin: '0 8px' }}></div>
-                    <button className="action-btn"><Search size={20} /></button>
+                    <button className="action-btn" onClick={() => setActiveChat(null)} title="Close Chat"><X size={20} /></button>
                     <button className="action-btn"><MoreVertical size={20} /></button>
                   </div>
                 </header>

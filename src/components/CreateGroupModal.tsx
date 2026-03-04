@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, Check, Camera } from 'lucide-react';
+import { ArrowLeft, Search, Check, Camera, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
-interface CreateGroupModalProps {
+interface CreateGroupPanelProps {
   onClose: () => void;
   onGroupCreated: (groupData: any) => void;
 }
 
-const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCreated }) => {
+const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCreated }) => {
   const { user, userData } = useAuth();
+  const [step, setStep] = useState<1 | 2>(1);
   const [groupName, setGroupName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
@@ -52,13 +53,11 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
     fetchRecent();
   }, [user]);
 
-  // Load contacts (for simplicity, we search users)
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
     const searchLower = searchTerm.trim().toLowerCase();
     
-    // Exact match via usernames collection
     const usernameRef = doc(db, 'usernames', searchLower);
     const usernameDoc = await getDoc(usernameRef);
     
@@ -74,7 +73,6 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
       }
     }
 
-    // Fallback/Wide search via users collection
     const q = query(
       collection(db, 'users'),
       where('usernameLower', '>=', searchLower),
@@ -87,6 +85,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
     
     setContacts([...results, ...wideResults]);
   };
+
   const toggleContact = (uid: string) => {
     setSelectedContacts(prev => 
       prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
@@ -118,7 +117,6 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
 
       await setDoc(doc(db, 'chats', groupId), groupData);
       
-      // Also add initial system message to subcollection
       await setDoc(doc(db, 'chats', groupId, 'messages', 'init'), {
         text: `${userData?.username || 'Someone'} created the group "${groupName}"`,
         senderId: 'system',
@@ -136,47 +134,44 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
     }
   };
 
+  const handleBack = () => {
+    if (step === 2) {
+      setStep(1);
+    } else {
+      onClose();
+    }
+  };
+
   return (
-    <div className="modal-overlay">
-      <div className="modal-content premium-modal">
-        <header className="modal-header">
-          <h2>New Group</h2>
-          <button className="close-btn" onClick={onClose}><X size={24} /></button>
-        </header>
-
-        <div className="modal-body">
-          <div className="group-info-inputs">
-            <div className="group-avatar-upload">
-              <div className="avatar-placeholder">
-                <Camera size={32} />
-              </div>
-            </div>
-            <div className="input-group">
-              <input 
-                type="text" 
-                placeholder="Group Subject" 
-                value={groupName}
-                onChange={e => setGroupName(e.target.value)}
-              />
-            </div>
+    <div className="sidebar-panel-container">
+      <header className="sidebar-panel-header">
+        <div className="panel-header-content">
+          <button className="action-btn" onClick={handleBack}><ArrowLeft size={24} /></button>
+          <div className="panel-info">
+            <h2 className="panel-title">{step === 1 ? 'Add group members' : 'New group'}</h2>
           </div>
+        </div>
+      </header>
 
-          <div className="contact-selection">
-            <div className="section-title">ADD MEMBERS ({selectedContacts.length})</div>
-            <form onSubmit={handleSearch} className="search-bar" style={{ marginBottom: '16px' }}>
-              <Search size={18} />
-              <input 
-                type="text" 
-                placeholder="Search contacts..." 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </form>
+      <div className="sidebar-panel-body scroll-v">
+        {step === 1 ? (
+          <>
+            <div className="search-container">
+              <form onSubmit={handleSearch} className="search-bar">
+                <Search size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Type contact name" 
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+              </form>
+            </div>
 
-            <div className="contact-list scroll-v">
+            <div className="contact-list">
               {!searchTerm && recentContacts.length > 0 && (
                 <>
-                  <div className="section-subtitle" style={{ padding: '8px 16px', fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>RECENT CONTACTS</div>
+                  <div className="section-title">RECENT CONTACTS</div>
                   {recentContacts.map(contact => (
                     <div 
                       key={contact.uid} 
@@ -192,54 +187,81 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
                       </div>
                     </div>
                   ))}
-                  <hr style={{ border: 'none', borderTop: '1px solid var(--glass-border)', margin: '8px 0' }} />
+                  <hr className="section-divider" />
                 </>
               )}
               
-              {searchTerm && contacts.length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>No users found.</div>
+              {searchTerm && (
+                <>
+                  <div className="section-title">SEARCH RESULTS</div>
+                  {contacts.map(contact => (
+                    <div 
+                      key={contact.uid} 
+                      className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
+                      onClick={() => toggleContact(contact.uid)}
+                    >
+                      <div className="avatar">
+                        {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
+                      </div>
+                      <div className="contact-name">{contact.username}</div>
+                      <div className="selection-indicator">
+                        {selectedContacts.includes(contact.uid) && <Check size={16} />}
+                      </div>
+                    </div>
+                  ))}
+                  {contacts.length === 0 && <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>No users found.</div>}
+                </>
               )}
-
-              {(searchTerm ? contacts : []).map(contact => (
-                <div 
-                  key={contact.uid} 
-                  className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
-                  onClick={() => toggleContact(contact.uid)}
-                >
-                  <div className="avatar">
-                    {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
-                  </div>
-                  <div className="contact-name">{contact.username}</div>
-                  <div className="selection-indicator">
-                    {selectedContacts.includes(contact.uid) && <Check size={16} />}
-                  </div>
-                </div>
-              ))}
 
               {!searchTerm && recentContacts.length === 0 && !isLoadingRecent && (
-                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>Search for users to add them to your group.</div>
-              )}
-
-              {isLoadingRecent && !searchTerm && (
-                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>Loading contacts...</div>
+                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>Search for users to add them.</div>
               )}
             </div>
-          </div>
-        </div>
 
-        <footer className="modal-footer">
-          <button className="cancel-btn" onClick={onClose}>Cancel</button>
-          <button 
-            className="save-btn" 
-            disabled={!groupName.trim() || selectedContacts.length === 0 || isCreating}
-            onClick={handleCreateGroup}
-          >
-            {isCreating ? 'Creating...' : 'Create Group'}
-          </button>
-        </footer>
+            {selectedContacts.length > 0 && (
+              <div className="panel-footer-actions">
+                <button className="fab-btn" onClick={() => setStep(2)}>
+                  <ArrowRight size={24} />
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="group-info-inputs" style={{ padding: '24px' }}>
+            <div className="avatar-edit" style={{ position: 'relative', width: '200px', height: '200px', margin: '0 auto 40px' }}>
+              <div className="large-avatar" style={{ width: '100%', height: '100%' }}>
+                <Camera size={48} />
+              </div>
+              <div className="avatar-overlay" style={{ opacity: 1, background: 'rgba(0,0,0,0.1)' }}>
+                <span>ADD GROUP ICON</span>
+              </div>
+            </div>
+            
+            <div className="input-group">
+              <input 
+                type="text" 
+                placeholder="Group Subject" 
+                autoFocus
+                value={groupName}
+                onChange={e => setGroupName(e.target.value)}
+                style={{ borderBottom: '2px solid var(--accent)', borderRadius: 0, background: 'transparent', padding: '12px 0' }}
+              />
+            </div>
+
+            <div className="panel-footer-actions" style={{ marginTop: '40px', background: 'transparent' }}>
+              <button 
+                className="fab-btn" 
+                disabled={!groupName.trim() || isCreating}
+                onClick={handleCreateGroup}
+              >
+                <Check size={24} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default CreateGroupModal;
+export default CreateGroupPanel;

@@ -3,7 +3,7 @@ import { Search, MessageSquarePlus, Check, CheckCheck, MoreVertical, Users } fro
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, onSnapshot, orderBy } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import CreateGroupModal from './CreateGroupModal';
+import CreateGroupPanel from './CreateGroupModal';
 
 interface SidebarProps {
   onSelectChat: (chat: any) => void;
@@ -18,7 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'favorites'>('all');
-  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [currentPanel, setCurrentPanel] = useState<'chats' | 'new-group'>('chats');
 
   // Load existing chats with real-time presence and unread logic
   useEffect(() => {
@@ -59,13 +59,11 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       console.error("Chats listener error:", error);
       if (error.code === 'failed-precondition') {
         console.warn("Firestore index missing for sorting. Falling back to client-side sort.");
-        // Fallback: fetch without orderBy
         const qNoSort = query(
           collection(db, 'chats'),
           where('participants', 'array-contains', user.uid)
         );
         onSnapshot(qNoSort, async (snapshot) => {
-           // Reuse the logic but sort manually
            const list = await Promise.all(snapshot.docs.map(async (chatDoc) => {
               const data = chatDoc.data();
               if (data.isGroup) return { id: chatDoc.id, ...data };
@@ -94,13 +92,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
 
     setIsSearching(true);
     setHasSearched(true);
-    console.log("Starting search for:", searchTerm.trim());
 
     try {
       const searchLower = searchTerm.trim().toLowerCase();
-      
-      // 1. Exact match lookup via 'usernames' collection (works for ALL users)
-      // This is crucial for finding users who haven't logged in since the usernameLower fix.
       const usernameRef = doc(db, 'usernames', searchLower);
       const usernameDoc = await getDoc(usernameRef);
       
@@ -116,12 +110,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
              const foundUserData = { ...userDoc.data(), uid };
              results.push(foundUserData);
              seenUids.add(uid);
-             console.log("Exact match found via usernames collection");
            }
         }
       }
 
-      // 2. Prefix search for newer users who have the usernameLower field
       const q = query(
         collection(db, 'users'), 
         where('usernameLower', '>=', searchLower),
@@ -136,7 +128,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
         }
       });
       
-      console.log(`Search found ${results.length} results`);
       setSearchResults(results);
     } catch (err) {
       console.error("Search error:", err);
@@ -198,6 +189,20 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
     return <Check size={14} color="var(--text-secondary)" style={{ marginRight: '4px' }} />;
   };
 
+  if (currentPanel === 'new-group') {
+    return (
+      <aside className="sidebar">
+        <CreateGroupPanel 
+          onClose={() => setCurrentPanel('chats')} 
+          onGroupCreated={(groupData) => {
+            onSelectChat(groupData);
+            setCurrentPanel('chats');
+          }}
+        />
+      </aside>
+    );
+  }
+
   return (
     <aside className="sidebar">
       <header className="chat-header">
@@ -213,7 +218,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
         </div>
         <div className="header-actions">
           <button className="action-btn" title="New Chat" onClick={() => setActiveFilter('all')}><MessageSquarePlus size={20} /></button>
-          <button className="action-btn" title="New Group" onClick={() => setShowCreateGroup(true)}><Users size={20} /></button>
+          <button className="action-btn" title="New Group" onClick={() => setCurrentPanel('new-group')}><Users size={20} /></button>
           <button className="action-btn" title="Menu"><MoreVertical size={20} /></button>
         </div>
       </header>
@@ -250,7 +255,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
         </div>
       </div>
 
-      <div className="chat-list">
+      <div className="chat-list scroll-v">
         {(isSearching || hasSearched) && (
           <div className="search-results-section">
             <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -344,13 +349,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
           </div>
         ))}
       </div>
-
-      {showCreateGroup && (
-        <CreateGroupModal 
-          onClose={() => setShowCreateGroup(false)} 
-          onGroupCreated={(groupData) => onSelectChat(groupData)}
-        />
-      )}
     </aside>
   );
 };
