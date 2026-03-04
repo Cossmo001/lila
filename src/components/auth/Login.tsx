@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { auth } from '../../lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useNotification } from '../../context/NotificationContext';
 
 interface LoginProps {
   onToggle: () => void;
@@ -11,6 +12,7 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { requestNativePermission } = useNotification();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +21,8 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Request notification permissions
+      await requestNativePermission();
     } catch (err: any) {
       setError('Invalid email or password');
     } finally {

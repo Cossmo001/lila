@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { MessageSquare, Phone, Info, X } from 'lucide-react';
 import { getToken, onMessage } from 'firebase/messaging';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 import { messaging, db } from '../lib/firebase';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
@@ -20,7 +22,7 @@ interface NotificationContextType {
   showToast: (toast: Omit<Toast, 'id'>) => void;
   playTone: (type: 'incoming' | 'outgoing' | 'call', loop?: boolean) => void;
   stopTone: (type: 'incoming' | 'outgoing' | 'call') => void;
-  requestNativePermission: () => Promise<boolean>;
+  requestNativePermission: (prompt?: boolean) => Promise<boolean>;
   sendNativeNotification: (title: string, options?: NotificationOptions) => void;
   syncFCMToken: () => Promise<void>;
 }
@@ -70,13 +72,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, []);
 
-  const requestNativePermission = useCallback(async () => {
+  const requestNativePermission = useCallback(async (prompt: boolean = true) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permStatus = await PushNotifications.checkPermissions();
+        if (permStatus.receive === 'granted') return true;
+        if (!prompt) return false;
+        
+        const result = await PushNotifications.requestPermissions();
+        return result.receive === 'granted';
+      } catch (err) {
+        console.error("Native permission request failed:", err);
+        return false;
+      }
+    }
+
     if (!('Notification' in window)) {
       console.warn("This browser does not support desktop notifications");
       return false;
     }
     
     if (Notification.permission === 'granted') return true;
+    if (!prompt) return false;
     
     const permission = await Notification.requestPermission();
     return permission === 'granted';
@@ -106,18 +123,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user } = useAuth();
 
   const syncFCMToken = useCallback(async () => {
-    if (!user?.uid || !messaging) return;
+    if (!user?.uid) return;
     
     try {
-      const permission = await requestNativePermission();
+      // Only attempt to sync if permissions are already granted (don't prompt on mount)
+      const permission = await requestNativePermission(false);
       if (!permission) return;
 
-      const currentToken = await getToken(messaging, {
-        vapidKey: 'BGNA0Dcd-RVPIozjD4PvSSzf7vZEMvOXgl88uCa5ykH-WlgKsYDfb2UC6_JIhN7_S-xmLrsksyURN1rCHRexo_c'
-      });
+      let currentToken = '';
+
+      if (Capacitor.isNativePlatform()) {
+        // For native, we register and wait for the listener (handled in useEffect)
+        // or we can use a promise-based approach if the plugin supports it
+        await PushNotifications.register();
+        return; // Token will be synced via the listener below
+      } else if (messaging) {
+        currentToken = await getToken(messaging, {
+          vapidKey: 'BGNA0Dcd-RVPIozjD4PvSSzf7vZEMvOXgl88uCa5ykH-WlgKsYDfb2UC6_JIhN7_S-xmLrsksyURN1rCHRexo_c'
+        });
+      }
 
       if (currentToken) {
-        // Only update if the token has actually changed to avoid infinite loops with userData listeners
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         const userData = userDoc.data();
         
@@ -127,14 +153,68 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             lastTokenSync: new Date()
           });
           console.log("FCM Token synced successfully");
-        } else {
-          console.log("FCM Token already up to date");
         }
       }
     } catch (err) {
       console.error("FCM Token sync failed:", err);
     }
   }, [user?.uid, requestNativePermission]);
+
+  // Listen for native push notifications and token registration
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !user?.uid) return;
+
+    let registrationListener: any;
+    let registrationErrorListener: any;
+    let pushNotificationReceivedListener: any;
+    let pushNotificationActionPerformedListener: any;
+
+    const setupListeners = async () => {
+      registrationListener = await PushNotifications.addListener('registration', async (token) => {
+        console.log('Push registration success, token: ' + token.value);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          const userData = userDoc.data();
+          if (userData?.fcmToken !== token.value) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              fcmToken: token.value,
+              lastTokenSync: new Date()
+            });
+          }
+        } catch (err) {
+          console.error("Failed to sync native FCM token:", err);
+        }
+      });
+
+      registrationErrorListener = await PushNotifications.addListener('registrationError', (error) => {
+        console.error('Push registration error: ', error.error);
+      });
+
+      pushNotificationReceivedListener = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('Push notification received: ', notification);
+        showToast({
+          type: 'message',
+          title: notification.title || 'New Message',
+          message: notification.body || '',
+          avatarUrl: notification.data?.avatarUrl
+        });
+        playTone('incoming');
+      });
+
+      pushNotificationActionPerformedListener = await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        console.log('Push notification action performed: ', notification);
+      });
+    };
+
+    setupListeners();
+
+    return () => {
+      registrationListener?.remove();
+      registrationErrorListener?.remove();
+      pushNotificationReceivedListener?.remove();
+      pushNotificationActionPerformedListener?.remove();
+    };
+  }, [user?.uid, showToast, playTone]);
 
   // Listen for foreground messages
   useEffect(() => {

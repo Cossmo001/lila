@@ -13,6 +13,7 @@
     "@capacitor/android": "^8.1.0",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",
+    "@capacitor/push-notifications": "^8.0.1",
     "@supabase/supabase-js": "^2.98.0",
     "agora-rtc-sdk-ng": "^4.24.2",
     "firebase": "^12.10.0",

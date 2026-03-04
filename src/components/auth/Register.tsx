@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { useNotification } from '../../context/NotificationContext';
 
 interface RegisterProps {
   onToggle: () => void;
@@ -13,6 +14,7 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { requestNativePermission } = useNotification();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +59,9 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
       await setDoc(doc(db, 'usernames', username.toLowerCase()), {
         uid: user.uid
       });
+
+      // Request notification permissions
+      await requestNativePermission();
 
     } catch (err: any) {
       console.error("Registration error:", err);
