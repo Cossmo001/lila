@@ -123,7 +123,7 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     }).commit();
   }, [chatId, userId]);
 
-  const sendMediaMessage = useCallback(async (file: File, type: 'image' | 'video' | 'audio' | 'file') => {
+  const sendMediaMessage = useCallback(async (file: File, type: 'image' | 'video' | 'audio' | 'file', caption?: string) => {
     if (!chatId || !userId) return;
 
     const fileExt = file.name.split('.').pop();
@@ -146,8 +146,8 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       .from('media')
       .getPublicUrl(filePath);
     
-    // For files, we might want to include the filename in the text
-    const messageText = type === 'file' ? file.name : "";
+    // For files, we might want to include the filename in the text if no caption provided
+    const messageText = caption || (type === 'file' ? file.name : "");
     await sendMessage(messageText, type, publicUrl);
   }, [chatId, userId, sendMessage]);
 

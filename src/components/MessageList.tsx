@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck } from 'lucide-react';
+import { Check, CheckCheck, FileText } from 'lucide-react';
 import type { Message } from '../types';
 import MediaViewer from './MediaViewer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -99,11 +99,32 @@ const MessageList: React.FC<MessageListProps> = ({
         );
       case 'audio':
         return <CustomAudioPlayer url={msg.mediaUrl!} />;
+      case 'file':
+        return (
+          <div className="message-file-content">
+            <div className="file-icon"><FileText size={20} /></div>
+            <div className="file-info">
+              <span className="file-name">{msg.text.split('\n')[0]}</span>
+              <button 
+                className="file-download-btn"
+                onClick={() => window.open(msg.mediaUrl, '_blank')}
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        );
       default:
         return <>{msg.text}</>;
     }
   };
 
+  const renderMessageText = (msg: Message) => {
+    if (msg.type !== 'text' && msg.type !== 'file' && msg.text) {
+      return <p className="message-caption">{msg.text}</p>;
+    }
+    return null;
+  };
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -157,6 +178,7 @@ const MessageList: React.FC<MessageListProps> = ({
                     </div>
                   )}
                   {renderMessageContent(msg)}
+                  {renderMessageText(msg)}
                 <div className="message-time">
                   {msg.isEdited && <span className="edited-tag">edited</span>}
                   {formatTime(msg.timestamp)}

@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Smile, Plus, Mic, Image, Video, X, Square, FileText } from 'lucide-react';
+import { Send, Smile, Plus, Mic, Image, Video, X, Square, FileText, Camera as CameraIcon } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import MediaPreview from './MediaPreview';
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
-  onSendMedia: (file: File, type: 'image' | 'video' | 'audio' | 'file') => void;
+  onSendMedia: (file: File, type: 'image' | 'video' | 'audio' | 'file', caption?: string) => void;
   replyingTo?: any;
   editingMessage?: any;
   onCancelAction?: () => void;
@@ -15,6 +18,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia, reply
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File, type: 'image' | 'video' | 'audio' | 'file' } | null>(null);
 
   useEffect(() => {
     if (editingMessage) {
@@ -72,14 +76,45 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia, reply
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
     const file = e.target.files?.[0];
     if (file) {
-      setIsUploading(true);
+      setPendingMedia({ file, type });
       setShowAttachments(false);
-      try {
-        await onSendMedia(file, type as any);
-      } finally {
-        setIsUploading(false);
-        if (e.target) e.target.value = '';
-      }
+      if (e.target) e.target.value = ''; // Clear the input so the same file can be selected again
+    }
+  };
+
+  const handleCancelPending = () => {
+    setPendingMedia(null);
+  };
+
+  const handleNativeMedia = async (sourceType: 'camera' | 'photos') => {
+    if (!Capacitor.isNativePlatform()) return;
+    
+    try {
+      const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: true,
+        resultType: CameraResultType.Uri,
+        source: sourceType === 'camera' ? CameraSource.Camera : CameraSource.Photos
+      });
+      
+      const response = await fetch(image.webPath!);
+      const blob = await response.blob();
+      const file = new File([blob], `captured_image.${image.format}`, { type: `image/${image.format}` });
+      setPendingMedia({ file, type: 'image' });
+      setShowAttachments(false);
+    } catch (err) {
+      console.error("Native media error:", err);
+    }
+  };
+
+  const handleSendPending = async (file: File, caption: string) => {
+    if (!pendingMedia) return;
+    setIsUploading(true);
+    try {
+      await onSendMedia(file, pendingMedia.type, caption);
+    } finally {
+      setIsUploading(false);
+      setPendingMedia(null);
     }
   };
 
@@ -143,11 +178,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia, reply
         </div>
       )}
       <div className={`attachments-menu ${showAttachments ? 'active' : ''}`}>
+        {Capacitor.isNativePlatform() && (
+          <button className="attachment-item" onClick={() => handleNativeMedia('camera')} disabled={isUploading}>
+            <div className="icon-circle" style={{ background: '#ff9c3a' }}><CameraIcon size={20} /></div>
+            <span>Camera</span>
+          </button>
+        )}
         <button className="attachment-item" onClick={() => docInputRef.current?.click()} disabled={isUploading}>
           <div className="icon-circle" style={{ background: '#5f66cd' }}><FileText size={20} /></div>
           <span>Document</span>
         </button>
-        <button className="attachment-item" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+        <button className="attachment-item" onClick={() => Capacitor.isNativePlatform() ? handleNativeMedia('photos') : fileInputRef.current?.click()} disabled={isUploading}>
           <div className="icon-circle" style={{ background: '#7f66ff' }}><Image size={20} /></div>
           <span>Photos</span>
         </button>
@@ -214,9 +255,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, onSendMedia, reply
           {text.trim() ? <Send size={24} /> : <Mic size={24} />}
         </button>
       )}
+      {pendingMedia && (
+        <MediaPreview 
+          file={pendingMedia.file} 
+          type={pendingMedia.type} 
+          onClose={handleCancelPending} 
+          onSend={handleSendPending}
+        />
+      )}
     </div>
   );
 };
 
 export default ChatInput;
-
