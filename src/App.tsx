@@ -19,7 +19,7 @@ import { useAgora } from './context/AgoraContext';
 import { useNotification } from './context/NotificationContext';
 import { useChat } from './hooks/useChat';
 import FeedbackSection from './components/FeedbackSection';
-import { addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, updateDoc, writeBatch, increment } from 'firebase/firestore';
 import './index.css';
 
 function App() {
@@ -304,6 +304,38 @@ function App() {
       const docRef = await addDoc(collection(db, 'calls'), callData);
       console.log('Call document added with ID:', docRef.id);
       
+      // Log call in chat history
+      const chatId = activeChat?.id || [user.uid, recipientData.uid].sort().join('_');
+      const chatRef = doc(db, 'chats', chatId);
+      const callMsgText = type === 'audio' ? 'Voice call' : 'Video call';
+      
+      const messageData = {
+        text: callMsgText,
+        type: 'call',
+        senderId: user.uid,
+        senderName: userData.username,
+        timestamp: serverTimestamp(),
+        read: false,
+        delivered: false,
+      };
+
+      // Add to messages subcollection
+      await addDoc(collection(db, 'chats', chatId, 'messages'), messageData);
+
+      // Update chat lastMessage and unreadCount
+      await writeBatch(db).update(chatRef, {
+        lastMessage: {
+          text: callMsgText,
+          senderId: user.uid,
+          senderName: userData.username,
+          read: false,
+          delivered: false,
+          type: 'call'
+        },
+        updatedAt: serverTimestamp(),
+        unreadCount: increment(1)
+      }).commit();
+
       setActiveCall({
         id: docRef.id,
         status: 'ringing',

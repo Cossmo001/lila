@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, FileText } from 'lucide-react';
+import { Check, CheckCheck, FileText, Phone, Video } from 'lucide-react';
 import type { Message } from '../types';
 import MediaViewer from './MediaViewer';
 import CustomAudioPlayer from './CustomAudioPlayer';
@@ -114,6 +114,13 @@ const MessageList: React.FC<MessageListProps> = ({
             </div>
           </div>
         );
+      case 'call':
+        return (
+          <div className="message-call-log">
+            {msg.text.toLowerCase().includes('video') ? <Video size={16} /> : <Phone size={16} />}
+            <span>{msg.text}</span>
+          </div>
+        );
       default:
         return <>{msg.text}</>;
     }
@@ -186,11 +193,11 @@ const MessageList: React.FC<MessageListProps> = ({
                     <>
                       <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
                         {msg.read ? (
-                          <CheckCheck size={14} color="var(--accent)" />
+                          <CheckCheck size={14} color="#34b7f1" />
                         ) : msg.delivered ? (
-                          <CheckCheck size={14} color="var(--text-time)" />
+                          <CheckCheck size={14} color="#8696a0" />
                         ) : (
-                          <Check size={14} color="var(--text-time)" />
+                          <Check size={14} color="#8696a0" />
                         )}
                       </div>
                     </>

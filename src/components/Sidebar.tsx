@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MessageSquarePlus, Check, CheckCheck, MoreVertical, Users } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, onSnapshot, orderBy } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import CreateGroupModal from './CreateGroupModal';
 
@@ -26,7 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
     const q = query(
       collection(db, 'chats'), 
       where('participants', 'array-contains', user.uid),
-      // orderBy('updatedAt', 'desc') // Temporarily disabled to debug missing index
+      orderBy('updatedAt', 'desc')
     );
     
     const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -57,6 +57,33 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       }
     }, (error) => {
       console.error("Chats listener error:", error);
+      if (error.code === 'failed-precondition') {
+        console.warn("Firestore index missing for sorting. Falling back to client-side sort.");
+        // Fallback: fetch without orderBy
+        const qNoSort = query(
+          collection(db, 'chats'),
+          where('participants', 'array-contains', user.uid)
+        );
+        onSnapshot(qNoSort, async (snapshot) => {
+           // Reuse the logic but sort manually
+           const list = await Promise.all(snapshot.docs.map(async (chatDoc) => {
+              const data = chatDoc.data();
+              if (data.isGroup) return { id: chatDoc.id, ...data };
+              const recipientUid = data.participants.find((p: string) => p !== user?.uid);
+              if (!recipientUid) return null;
+              const userRef = doc(db, 'users', recipientUid);
+              const userDoc = await getDoc(userRef);
+              const recipientData = userDoc.exists() ? userDoc.data() : { username: 'Unknown User', uid: recipientUid };
+              return { id: chatDoc.id, ...data, recipient: { uid: recipientUid, ...recipientData } };
+           }));
+           const sorted = list.filter(Boolean).sort((a: any, b: any) => {
+             const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt || 0);
+             const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt || 0);
+             return tB - tA;
+           });
+           setChats(sorted);
+        });
+      }
     });
     return unsubscribe;
   }, [user]);
@@ -306,7 +333,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
                   {renderStatusTicks(chat.lastMessage)}
                   {chat.lastMessage?.text || 'No messages yet'}
                 </p>
-                {chat.lastMessage?.senderId !== user?.uid && !chat.lastMessage?.read && (
+                {chat.unreadCount > 0 && chat.lastMessage?.senderId !== user?.uid && (
+                  <div className="unread-badge">{chat.unreadCount}</div>
+                )}
+                {chat.unreadCount === 0 && chat.lastMessage?.senderId !== user?.uid && !chat.lastMessage?.read && (
                   <div className="unread-dot" />
                 )}
               </div>

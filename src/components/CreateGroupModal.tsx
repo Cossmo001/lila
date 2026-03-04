@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, Check, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
@@ -15,7 +15,41 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [recentContacts, setRecentContacts] = useState<any[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+
+  // Fetch recent contacts from chats
+  useEffect(() => {
+    if (!user) return;
+    const fetchRecent = async () => {
+      try {
+        const q = query(collection(db, 'chats'), where('participants', 'array-contains', user.uid));
+        const snap = await getDocs(q);
+        const contactUids = new Set<string>();
+        snap.docs.forEach(doc => {
+          const data = doc.data();
+          if (!data.isGroup) {
+            const recipientUid = data.participants.find((p: string) => p !== user.uid);
+            if (recipientUid) contactUids.add(recipientUid);
+          }
+        });
+
+        const contactData = await Promise.all(
+          Array.from(contactUids).map(async (uid) => {
+            const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', uid)));
+            return userDoc.empty ? null : { uid, ...userDoc.docs[0].data() };
+          })
+        );
+        setRecentContacts(contactData.filter(Boolean));
+      } catch (err) {
+        console.error("Error fetching recent contacts:", err);
+      } finally {
+        setIsLoadingRecent(false);
+      }
+    };
+    fetchRecent();
+  }, [user]);
 
   // Load contacts (for simplicity, we search users)
   const handleSearch = async (e: React.FormEvent) => {
@@ -118,7 +152,33 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
             </form>
 
             <div className="contact-list scroll-v">
-              {contacts.map(contact => (
+              {!searchTerm && recentContacts.length > 0 && (
+                <>
+                  <div className="section-subtitle" style={{ padding: '8px 16px', fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>RECENT CONTACTS</div>
+                  {recentContacts.map(contact => (
+                    <div 
+                      key={contact.uid} 
+                      className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
+                      onClick={() => toggleContact(contact.uid)}
+                    >
+                      <div className="avatar">
+                        {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
+                      </div>
+                      <div className="contact-name">{contact.username}</div>
+                      <div className="selection-indicator">
+                        {selectedContacts.includes(contact.uid) && <Check size={16} />}
+                      </div>
+                    </div>
+                  ))}
+                  <hr style={{ border: 'none', borderTop: '1px solid var(--glass-border)', margin: '8px 0' }} />
+                </>
+              )}
+              
+              {searchTerm && contacts.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>No users found.</div>
+              )}
+
+              {(searchTerm ? contacts : []).map(contact => (
                 <div 
                   key={contact.uid} 
                   className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
@@ -133,6 +193,14 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onGroupCre
                   </div>
                 </div>
               ))}
+
+              {!searchTerm && recentContacts.length === 0 && !isLoadingRecent && (
+                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>Search for users to add them to your group.</div>
+              )}
+
+              {isLoadingRecent && !searchTerm && (
+                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>Loading contacts...</div>
+              )}
             </div>
           </div>
         </div>

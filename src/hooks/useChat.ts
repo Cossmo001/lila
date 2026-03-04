@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, getDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import type { Message } from '../types';
@@ -51,12 +51,16 @@ export const useChat = (chatId: string | null, userId: string | null) => {
           });
           
           const lastMsgDoc = snapshot.docs[snapshot.docs.length - 1];
+          const chatRef = doc(db, 'chats', chatId);
           if (lastMsgDoc && unreadThemMessages.find(m => m.id === lastMsgDoc.id)) {
-            const chatRef = doc(db, 'chats', chatId);
             batch.update(chatRef, {
               'lastMessage.read': true,
-              'lastMessage.delivered': true
+              'lastMessage.delivered': true,
+              unreadCount: 0
             });
+          } else {
+            // Also reset unreadCount if we are reading any messages even if it's not the last one
+            batch.update(chatRef, { unreadCount: 0 });
           }
           
           await batch.commit();
@@ -119,7 +123,8 @@ export const useChat = (chatId: string | null, userId: string | null) => {
         read: false,
         delivered: false,
       },
-      updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp(),
+      unreadCount: increment(1)
     }).commit();
   }, [chatId, userId]);
 
