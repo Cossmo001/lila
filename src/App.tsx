@@ -22,7 +22,7 @@ import './index.css';
 function App() {
   const { user, userData, loading } = useAuth();
   const { join, leave } = useAgora();
-  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken } = useNotification();
+  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, requestNativePermission } = useNotification();
   const [activeChat, setActiveChat] = useState<{ id: string; recipient: any } | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
   const { messages, sendMessage: originalSendMessage, sendMediaMessage } = useChat(activeChat?.id || null, user?.uid || null);
@@ -38,12 +38,37 @@ function App() {
     isIncoming: boolean;
   } | null>(null);
 
-  // Sync FCM Token
+  // Sync FCM Token and Handle Initial Permission Request
   useEffect(() => {
-    if (user) {
-      syncFCMToken();
+    if (!user) return;
+
+    // Initial Sync (without prompting)
+    syncFCMToken();
+
+    // On Web/PWA, we need a user gesture to prompt. 
+    // We'll attach a one-time listener to the next click if permission isn't granted yet.
+    if (!('Notification' in window)) return;
+
+    if (Notification.permission === 'default') {
+      const handleFirstInteraction = async () => {
+        console.log("First interaction detected, requesting notification permission...");
+        const granted = await requestNativePermission(true);
+        if (granted) {
+          syncFCMToken();
+        }
+        window.removeEventListener('click', handleFirstInteraction);
+        window.removeEventListener('touchstart', handleFirstInteraction);
+      };
+
+      window.addEventListener('click', handleFirstInteraction, { once: true });
+      window.addEventListener('touchstart', handleFirstInteraction, { once: true });
+      
+      return () => {
+        window.removeEventListener('click', handleFirstInteraction);
+        window.removeEventListener('touchstart', handleFirstInteraction);
+      };
     }
-  }, [user?.uid, syncFCMToken]);
+  }, [user?.uid, syncFCMToken, requestNativePermission]);
 
   // Listen to total unread chats count
   useEffect(() => {
