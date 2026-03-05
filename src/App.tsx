@@ -477,7 +477,32 @@ function App() {
                   onMediaSelected={setPendingMedia}
                   isUploadingExternal={isUploadingMedia}
                 />
-                {/* MediaPreview moved to root level */}
+                {pendingMedia && pendingMedia.length > 0 && (
+                  <MediaPreview 
+                    media={pendingMedia} 
+                    onClose={() => setPendingMedia(null)} 
+                    onAddMedia={(newMedia) => setPendingMedia(prev => prev ? [...prev, ...newMedia] : newMedia)}
+                    onUpdateMedia={(index, updatedMedia) => {
+                      setPendingMedia(prev => {
+                        if (!prev) return null;
+                        const newArray = [...prev];
+                        newArray[index] = updatedMedia;
+                        return newArray;
+                      });
+                    }}
+                    onSend={async (mediaItems) => {
+                      setIsUploadingMedia(true);
+                      try {
+                        for (const item of mediaItems) {
+                          await sendMediaMessage(item.file, item.type, item.caption);
+                        }
+                      } finally {
+                        setIsUploadingMedia(false);
+                        setPendingMedia(null);
+                      }
+                    }}
+                  />
+                )}
               </>
             ) : (
               <div className="empty-state-container">
@@ -574,33 +599,6 @@ function App() {
           url={activeMedia.url} 
           type={activeMedia.type} 
           onClose={() => setActiveMedia(null)} 
-        />
-      )}
-
-      {pendingMedia && pendingMedia.length > 0 && (
-        <MediaPreview 
-          media={pendingMedia} 
-          onClose={() => setPendingMedia(null)} 
-          onAddMedia={(newMedia) => setPendingMedia(prev => prev ? [...prev, ...newMedia] : newMedia)}
-          onUpdateMedia={(index, updatedMedia) => {
-            setPendingMedia(prev => {
-              if (!prev) return null;
-              const newArray = [...prev];
-              newArray[index] = updatedMedia;
-              return newArray;
-            });
-          }}
-          onSend={async (mediaItems) => {
-            setIsUploadingMedia(true);
-            try {
-              for (const item of mediaItems) {
-                await sendMediaMessage(item.file, item.type, item.caption);
-              }
-            } finally {
-              setIsUploadingMedia(false);
-              setPendingMedia(null);
-            }
-          }}
         />
       )}
     </div>
