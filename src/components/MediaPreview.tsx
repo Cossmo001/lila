@@ -142,27 +142,29 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
 
   if (isEditing && type === 'image' && previewUrl) {
     return (
-      <div className="media-preview-overlay" style={{ zIndex: 9999 }}>
-        <FilerobotImageEditor
-          source={previewUrl}
-          onSave={(editedImageObject) => handleEditorSave(editedImageObject)}
-          onClose={() => setIsEditing(false)}
-          savingPixelRatio={1}
-          previewPixelRatio={1}
-          annotationsCommon={{ fill: '#ff0000' }}
-          Text={{ text: 'Add Text...' }}
-          defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
-          defaultToolId={editorConfig?.defaultToolId || TOOLS.TEXT}
-          theme={{
-            palette: {
-              'bg-primary-active': '#111b21',
-              'bg-active': '#202c33',
-            },
-            typography: {
-              fontFamily: 'inherit',
-            }
-          }}
-        />
+      <div className="media-preview-overlay" style={{ zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+          <FilerobotImageEditor
+            source={previewUrl}
+            onSave={(editedImageObject) => handleEditorSave(editedImageObject)}
+            onClose={() => setIsEditing(false)}
+            savingPixelRatio={1}
+            previewPixelRatio={1}
+            annotationsCommon={{ fill: '#ff0000' }}
+            Text={{ text: 'Add Text...' }}
+            defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
+            defaultToolId={editorConfig?.defaultToolId || TOOLS.TEXT}
+            theme={{
+              palette: {
+                'bg-primary-active': '#111b21',
+                'bg-active': '#202c33',
+              },
+              typography: {
+                fontFamily: 'inherit',
+              }
+            }}
+          />
+        </div>
       </div>
     );
   }
