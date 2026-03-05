@@ -75,11 +75,11 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
     <div className="media-preview-overlay">
       <div className="media-preview-container">
         <header className="media-preview-header-whatsapp">
-          <button onClick={onClose} className="close-btn-whatsapp" title="Close">
+          <button onClick={onClose} className="close-btn-whatsapp" title="Close" style={{ color: '#aebac1', padding: '8px' }}>
             <X size={24} />
           </button>
-          <div className="header-info">
-            <span className="preview-title">Preview</span>
+          <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
+            <span className="preview-title" style={{ fontSize: '1.1rem', fontWeight: 500 }}>Preview</span>
           </div>
           <div style={{ width: 44 }} />
         </header>

@@ -37,19 +37,19 @@ const MediaViewer: React.FC<MediaViewerProps> = ({ url, type, onClose }) => {
     <div className="media-viewer-overlay" onClick={onClose}>
       <div className="media-viewer-toolbar" onClick={e => e.stopPropagation()}>
         <div className="toolbar-left">
-          <button className="toolbar-btn" onClick={onClose} title="Close">
+          <button className="toolbar-btn close-btn" onClick={onClose} title="Close">
             <X size={24} />
           </button>
         </div>
-        <div className="toolbar-right">
+        <div className="toolbar-right" style={{ display: 'flex', gap: '12px' }}>
           {type === 'image' && (
             <>
-              <button className="toolbar-btn"><ZoomIn size={20} /></button>
-              <button className="toolbar-btn"><ZoomOut size={20} /></button>
+              <button className="toolbar-btn"><ZoomIn size={22} /></button>
+              <button className="toolbar-btn"><ZoomOut size={22} /></button>
             </>
           )}
           <button className="toolbar-btn" onClick={handleDownload} title="Download">
-            <Download size={20} />
+            <Download size={22} />
           </button>
         </div>
       </div>
