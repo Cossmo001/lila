@@ -45,9 +45,17 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
   const renderPreview = () => {
     switch (type) {
       case 'image':
-        return <img src={previewUrl!} alt="Preview" className="media-preview-content" />;
+        return (
+          <div className="media-preview-image-wrapper">
+            <img src={previewUrl!} alt="Preview" className="media-preview-content" />
+          </div>
+        );
       case 'video':
-        return <video src={previewUrl!} controls className="media-preview-content" />;
+        return (
+          <div className="media-preview-image-wrapper">
+            <video src={previewUrl!} controls className="media-preview-content" />
+          </div>
+        );
       case 'audio':
         return (
           <div className="media-preview-file-card">
