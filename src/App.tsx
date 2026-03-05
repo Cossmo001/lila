@@ -15,6 +15,8 @@ import CallOverlay from './components/CallOverlay';
 import GroupInfoModal from './components/GroupInfoModal';
 import AdminPortal from './components/AdminPortal';
 import PermissionRequestOverlay from './components/PermissionRequestOverlay';
+import MediaPreview from './components/MediaPreview';
+import MediaViewer from './components/MediaViewer';
 import { useAuth } from './context/AuthContext';
 import { useAgora } from './context/AgoraContext';
 import { useNotification } from './context/NotificationContext';
@@ -45,6 +47,9 @@ function App() {
     isMinimized?: boolean;
   } | null>(null);
   const [showPermissionOverlay, setShowPermissionOverlay] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File, type: 'image' | 'video' | 'audio' | 'file' } | null>(null);
+  const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   // Sync FCM Token and Handle Permission Flow Trigger
   useEffect(() => {
@@ -457,6 +462,7 @@ function App() {
                   onDeleteMessage={deleteMessage}
                   onReplyMessage={(msg) => setReplyingTo(msg)}
                   onEditMessage={(msg) => setEditingMessage(msg)}
+                  onMediaClick={setActiveMedia}
                 />
                 
                 <ChatInput 
@@ -468,6 +474,8 @@ function App() {
                     setReplyingTo(null);
                     setEditingMessage(null);
                   }}
+                  onMediaSelected={setPendingMedia}
+                  isUploadingExternal={isUploadingMedia}
                 />
               </>
             ) : (
@@ -521,6 +529,31 @@ function App() {
         )
       )}
       </div>
+
+      {pendingMedia && (
+        <MediaPreview 
+          file={pendingMedia.file} 
+          type={pendingMedia.type} 
+          onClose={() => setPendingMedia(null)} 
+          onSend={async (file, caption) => {
+            setIsUploadingMedia(true);
+            try {
+              await sendMediaMessage(file, pendingMedia.type, caption);
+            } finally {
+              setIsUploadingMedia(false);
+              setPendingMedia(null);
+            }
+          }}
+        />
+      )}
+
+      {activeMedia && (
+        <MediaViewer 
+          url={activeMedia.url} 
+          type={activeMedia.type} 
+          onClose={() => setActiveMedia(null)} 
+        />
+      )}
 
       {activeCall && (
         <CallOverlay 

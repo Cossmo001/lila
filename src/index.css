@@ -1075,6 +1075,7 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  flex-shrink: 0;
 }
 
 .wa-avatar-container img, 
@@ -1082,7 +1083,7 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%; /* Force circle if it's a div */
+  display: block;
 }
 
 .wa-name-row {
@@ -1181,6 +1182,41 @@ body {
   background: var(--bg-deep);
   aspect-ratio: 1;
   border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Profile Avatar Styles (used in GroupInfoModal) */
+.profile-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-avatar.large {
+  width: 200px;
+  height: 200px;
+  font-size: 4rem;
+  font-weight: 600;
+  color: white;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 0;
 }
 
 /* Danger Section */
@@ -1850,45 +1886,30 @@ body {
   }
 
 /* --- Media Preview (Sending) --- */
+/* --- Media Preview (Sending) --- */
 .media-preview-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: #0b141a;
   z-index: 10000;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.3s ease;
+  flex-direction: column;
+  animation: fadeIn 0.2s ease-out;
 }
 
 .media-preview-container {
-  width: 100%;
-  height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  background: #0b141a;
-  color: white;
-}
-
-@media (min-width: 901px) {
-  .media-preview-container {
-    max-width: 1100px;
-    height: 85vh;
-    border-radius: 20px;
-    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
-    overflow: hidden;
-    position: relative;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
 }
 
 .media-preview-header-whatsapp {
-  padding: 16px 20px;
+  height: 60px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
-  background: #111b21;
+  background: rgba(11, 20, 26, 0.95);
+  backdrop-filter: blur(10px);
 }
 
 .media-preview-main {
@@ -1896,7 +1917,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0b141a;
   padding: 20px;
   overflow: hidden;
 }
@@ -1905,73 +1925,56 @@ body {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  transition: transform 0.3s ease;
 }
-
-.media-preview-file-card {
-  background: #202c33;
-  padding: 32px;
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  min-width: 280px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-}
-
-.file-info-large {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  text-align: center;
-}
-
-.file-name-large {
-  font-weight: 500;
-  font-size: 1.1rem;
-  color: #e9edef;
-  max-width: 240px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-size-large {
-  font-size: 0.85rem;
-  color: #8696a0;
-}
-
-.file-icon-large {
-  width: 80px;
-  height: 80px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-}
-
-.file-icon-large.doc { background: #5f66cd; }
-.file-icon-large.audio { background: #7f66ff; }
 
 .media-preview-footer-whatsapp {
-  padding: 20px;
-  background: #111b21;
+  background: rgba(17, 27, 33, 0.9);
+  padding: 20px 0;
   display: flex;
   justify-content: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: center;
 }
 
 .caption-input-container-whatsapp {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   background: #2a3942;
-  padding: 10px 16px;
+  padding: 12px 20px;
   border-radius: 30px;
-  width: 100%;
-  max-width: 800px;
+  width: 90%;
+  max-width: 900px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.caption-input-container-whatsapp input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e9edef;
+  font-size: 1.05rem;
+}
+
+.send-media-btn-whatsapp {
+  background: #00a884;
+  color: white;
+  border: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.send-media-btn-whatsapp:hover {
+  background: #017561;
+  transform: scale(1.05);
 }
 
 /* --- Media Viewer (Viewing) --- */
@@ -1979,26 +1982,21 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   z-index: 10000;
   display: flex;
   flex-direction: column;
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
 .media-viewer-toolbar {
-  padding: 20px 30px;
+  height: 60px;
+  padding: 0 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 10;
-}
-
-@media (min-width: 901px) {
-  .media-viewer-toolbar {
-    padding: 30px 40px;
-  }
 }
 
 .media-viewer-content {
@@ -2006,7 +2004,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.full-media {
+  max-width: 95%;
+  max-height: 95%;
+  object-fit: contain;
+  border-radius: 0; /* WhatsApp Desktop has no radius on viewer */
+}
+
+@media (min-width: 901px) {
+  .media-viewer-toolbar {
+    padding: 0 40px;
+    height: 80px;
+  }
 }
 
 .close-btn-whatsapp {

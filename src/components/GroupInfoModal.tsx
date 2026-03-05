@@ -169,7 +169,7 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
               {isUploading ? (
                 <div className="upload-spinner" />
               ) : group.groupMetadata?.photoURL ? (
-                <img src={group.groupMetadata.photoURL} alt="" />
+                <img src={group.groupMetadata.photoURL} alt={group.groupMetadata.name} />
               ) : (
                 group.groupMetadata.name[0].toUpperCase()
               )}

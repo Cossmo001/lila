@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, CheckCheck, FileText, Phone, Video } from 'lucide-react';
 import type { Message } from '../types';
-import MediaViewer from './MediaViewer';
 import CustomAudioPlayer from './CustomAudioPlayer';
 import MessageContextMenu from './MessageContextMenu';
 
@@ -14,6 +13,7 @@ interface MessageListProps {
   onDeleteMessage?: (messageId: string) => void;
   onReplyMessage?: (message: Message) => void;
   onEditMessage?: (message: Message) => void;
+  onMediaClick?: (media: { url: string; type: 'image' | 'video' }) => void;
 }
 
 const MessageList: React.FC<MessageListProps> = ({ 
@@ -21,10 +21,10 @@ const MessageList: React.FC<MessageListProps> = ({
   wallpaper, 
   onDeleteMessage,
   onReplyMessage,
-  onEditMessage
+  onEditMessage,
+  onMediaClick
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -83,12 +83,12 @@ const MessageList: React.FC<MessageListProps> = ({
             src={msg.mediaUrl} 
             alt="sent picture" 
             className="message-media image" 
-            onClick={() => setActiveMedia({ url: msg.mediaUrl!, type: 'image' })}
+            onClick={() => onMediaClick?.({ url: msg.mediaUrl!, type: 'image' })}
           />
         );
       case 'video':
         return (
-          <div className="message-media video-container" onClick={() => setActiveMedia({ url: msg.mediaUrl!, type: 'video' })}>
+          <div className="message-media video-container" onClick={() => onMediaClick?.({ url: msg.mediaUrl!, type: 'video' })}>
             <video src={msg.mediaUrl} className="message-media video" />
             <div className="video-overlay">
               <div className="play-icon-circle">
@@ -210,13 +210,6 @@ const MessageList: React.FC<MessageListProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {activeMedia && (
-        <MediaViewer 
-          url={activeMedia.url} 
-          type={activeMedia.type} 
-          onClose={() => setActiveMedia(null)} 
-        />
-      )}
 
       {contextMenu && (
         <MessageContextMenu 
