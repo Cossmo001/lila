@@ -52,6 +52,10 @@ function App() {
       return;
     }
 
+    // Apply theme to document body for global CSS variable scoping
+    const theme = userData?.settings?.theme || 'dark';
+    document.body.setAttribute('data-theme', theme);
+
     // Check if permissions have been handled for this user
     const handled = localStorage.getItem(`permissions_handled_${user.uid}`);
     if (!handled) {
@@ -59,7 +63,7 @@ function App() {
     } else {
       syncFCMToken();
     }
-  }, [user?.uid, syncFCMToken]);
+  }, [user?.uid, userData?.settings?.theme, syncFCMToken]);
 
   // Listen to total unread chats count
   useEffect(() => {
