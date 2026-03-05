@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// Polyfill React globally for legacy libraries like react-filerobot-image-editor
+if (typeof window !== 'undefined') {
+  (window as any).React = React;
+}
+
 import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Download, Plus } from 'lucide-react';
 import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
 
