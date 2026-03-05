@@ -477,6 +477,23 @@ function App() {
                   onMediaSelected={setPendingMedia}
                   isUploadingExternal={isUploadingMedia}
                 />
+                
+                {pendingMedia && (
+                  <MediaPreview 
+                    file={pendingMedia.file} 
+                    type={pendingMedia.type} 
+                    onClose={() => setPendingMedia(null)} 
+                    onSend={async (file, caption) => {
+                      setIsUploadingMedia(true);
+                      try {
+                        await sendMediaMessage(file, pendingMedia.type, caption);
+                      } finally {
+                        setIsUploadingMedia(false);
+                        setPendingMedia(null);
+                      }
+                    }}
+                  />
+                )}
               </>
             ) : (
               <div className="empty-state-container">
@@ -527,23 +544,6 @@ function App() {
             onClose={() => setShowProfileModal(false)} 
           />
         )
-      )}
-
-      {pendingMedia && (
-        <MediaPreview 
-          file={pendingMedia.file} 
-          type={pendingMedia.type} 
-          onClose={() => setPendingMedia(null)} 
-          onSend={async (file, caption) => {
-            setIsUploadingMedia(true);
-            try {
-              await sendMediaMessage(file, pendingMedia.type, caption);
-            } finally {
-              setIsUploadingMedia(false);
-              setPendingMedia(null);
-            }
-          }}
-        />
       )}
       </div>
 
