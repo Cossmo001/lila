@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Search, Check, Camera, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Search, Check, Camera, ArrowRight, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -18,7 +18,6 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
   const [contacts, setContacts] = useState<any[]>([]);
   const [recentContacts, setRecentContacts] = useState<any[]>([]);
   const [isCreating, setIsCreating] = useState(false);
-  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
 
   // Fetch recent contacts from chats
   useEffect(() => {
@@ -46,8 +45,6 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
         setRecentContacts(contactData.filter(Boolean));
       } catch (err) {
         console.error("Error fetching recent contacts:", err);
-      } finally {
-        setIsLoadingRecent(false);
       }
     };
     fetchRecent();
@@ -156,105 +153,137 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
       <div className="sidebar-panel-body scroll-v">
         {step === 1 ? (
           <>
-            <div className="search-container">
+            <div className="search-container" style={{ padding: '12px 16px', background: 'var(--bg-sidebar)' }}>
               <form onSubmit={handleSearch} className="search-bar">
-                <Search size={18} />
+                <Search size={18} className="text-secondary" />
                 <input 
                   type="text" 
                   placeholder="Type contact name" 
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
+                  style={{ fontSize: '0.95rem' }}
                 />
               </form>
+            </div>
+
+            <div className="selected-contacts-stripe" style={{ padding: '8px 16px', display: 'flex', gap: '8px', overflowX: 'auto', background: 'var(--bg-sidebar)', minHeight: selectedContacts.length > 0 ? '60px' : '0' }}>
+              {selectedContacts.map(uid => {
+                const contact = [...recentContacts, ...contacts].find(c => c.uid === uid);
+                if (!contact) return null;
+                return (
+                  <div key={uid} className="selected-avatar-mini" style={{ position: 'relative', flexShrink: 0 }}>
+                    <div className="avatar" style={{ width: '40px', height: '40px', fontSize: '0.8rem' }}>
+                      {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
+                    </div>
+                    <button 
+                      className="remove-selection" 
+                      onClick={() => toggleContact(uid)}
+                      style={{ position: 'absolute', bottom: -2, right: -2, background: 'var(--bg-deep)', borderRadius: '50%', border: '1px solid var(--glass-border)', padding: '2px', display: 'flex' }}
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="contact-list">
               {!searchTerm && recentContacts.length > 0 && (
                 <>
-                  <div className="section-title">RECENT CONTACTS</div>
+                  <div className="section-title" style={{ padding: '16px 24px 8px', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600 }}>RECENT CONTACTS</div>
                   {recentContacts.map(contact => (
                     <div 
                       key={contact.uid} 
                       className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
                       onClick={() => toggleContact(contact.uid)}
+                      style={{ padding: '12px 24px' }}
                     >
                       <div className="avatar">
                         {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
                       </div>
-                      <div className="contact-name">{contact.username}</div>
+                      <div className="contact-info-small" style={{ flex: 1, marginLeft: '16px' }}>
+                        <div className="contact-name" style={{ fontWeight: 400 }}>{contact.username}</div>
+                        <div className="contact-status" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Hey there! I am using Kadi.</div>
+                      </div>
                       <div className="selection-indicator">
-                        {selectedContacts.includes(contact.uid) && <Check size={16} />}
+                        <div className={`custom-checkbox ${selectedContacts.includes(contact.uid) ? 'checked' : ''}`} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedContacts.includes(contact.uid) ? 'var(--accent)' : 'transparent' }}>
+                          {selectedContacts.includes(contact.uid) && <Check size={14} color="#0b141a" />}
+                        </div>
                       </div>
                     </div>
                   ))}
-                  <hr className="section-divider" />
+                  <hr className="section-divider" style={{ margin: '8px 0', opacity: 0.1 }} />
                 </>
               )}
               
               {searchTerm && (
                 <>
-                  <div className="section-title">SEARCH RESULTS</div>
+                  <div className="section-title" style={{ padding: '16px 24px 8px', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600 }}>SEARCH RESULTS</div>
                   {contacts.map(contact => (
                     <div 
                       key={contact.uid} 
                       className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
                       onClick={() => toggleContact(contact.uid)}
+                      style={{ padding: '12px 24px' }}
                     >
                       <div className="avatar">
                         {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
                       </div>
-                      <div className="contact-name">{contact.username}</div>
+                      <div className="contact-info-small" style={{ flex: 1, marginLeft: '16px' }}>
+                        <div className="contact-name" style={{ fontWeight: 400 }}>{contact.username}</div>
+                      </div>
                       <div className="selection-indicator">
-                        {selectedContacts.includes(contact.uid) && <Check size={16} />}
+                        <div className={`custom-checkbox ${selectedContacts.includes(contact.uid) ? 'checked' : ''}`} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedContacts.includes(contact.uid) ? 'var(--accent)' : 'transparent' }}>
+                          {selectedContacts.includes(contact.uid) && <Check size={14} color="#0b141a" />}
+                        </div>
                       </div>
                     </div>
                   ))}
-                  {contacts.length === 0 && <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>No users found.</div>}
+                  {contacts.length === 0 && <div style={{ padding: '40px 20px', textAlign: 'center', opacity: 0.6 }}>No users found.</div>}
                 </>
-              )}
-
-              {!searchTerm && recentContacts.length === 0 && !isLoadingRecent && (
-                <div style={{ padding: '20px', textAlign: 'center', opacity: 0.6 }}>Search for users to add them.</div>
               )}
             </div>
 
             {selectedContacts.length > 0 && (
-              <div className="panel-footer-actions">
-                <button className="fab-btn" onClick={() => setStep(2)}>
-                  <ArrowRight size={24} />
+              <div className="panel-footer-actions" style={{ position: 'sticky', bottom: 0, padding: '30px', background: 'transparent', display: 'flex', justifyContent: 'center' }}>
+                <button className="fab-btn" onClick={() => setStep(2)} style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--accent)', color: '#0b141a', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                  <ArrowRight size={28} />
                 </button>
               </div>
             )}
           </>
         ) : (
-          <div className="group-info-inputs" style={{ padding: '24px' }}>
-            <div className="avatar-edit" style={{ position: 'relative', width: '200px', height: '200px', margin: '0 auto 40px' }}>
-              <div className="large-avatar" style={{ width: '100%', height: '100%' }}>
-                <Camera size={48} />
-              </div>
-              <div className="avatar-overlay" style={{ opacity: 1, background: 'rgba(0,0,0,0.1)' }}>
-                <span>ADD GROUP ICON</span>
+          <div className="group-info-inputs" style={{ padding: '32px 24px' }}>
+            <div className="avatar-edit-large" style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
+              <div className="large-avatar-whatsapp" style={{ width: '200px', height: '200px', borderRadius: '50%', background: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
+                <Camera size={48} className="text-secondary" />
+                <div className="avatar-overlay-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.2s' }}>
+                  <Camera size={32} />
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, marginTop: '8px' }}>ADD GROUP ICON</span>
+                </div>
               </div>
             </div>
             
-            <div className="input-group">
+            <div className="input-group-modern" style={{ borderBottom: '2px solid var(--accent)', paddingBottom: '8px' }}>
               <input 
                 type="text" 
                 placeholder="Group Subject" 
                 autoFocus
                 value={groupName}
                 onChange={e => setGroupName(e.target.value)}
-                style={{ borderBottom: '2px solid var(--accent)', borderRadius: 0, background: 'transparent', padding: '12px 0' }}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-main)', fontSize: '1.1rem' }}
               />
             </div>
+            <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Provide a group subject and optional group icon</p>
 
-            <div className="panel-footer-actions" style={{ marginTop: '40px', background: 'transparent' }}>
+            <div className="panel-footer-actions" style={{ marginTop: '60px', display: 'flex', justifyContent: 'center' }}>
               <button 
                 className="fab-btn" 
                 disabled={!groupName.trim() || isCreating}
                 onClick={handleCreateGroup}
+                style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--accent)', color: '#0b141a', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', opacity: !groupName.trim() || isCreating ? 0.6 : 1 }}
               >
-                <Check size={24} />
+                <Check size={28} />
               </button>
             </div>
           </div>

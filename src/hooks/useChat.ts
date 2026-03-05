@@ -29,10 +29,15 @@ export const useChat = (chatId: string | null, userId: string | null) => {
           mediaUrl: data.mediaUrl,
           sender: data.senderId === userId ? 'me' : 'them',
           senderId: data.senderId,
+          senderName: data.senderName,
+          senderAvatar: data.senderAvatar,
           timestamp: data.timestamp?.toDate() || new Date(),
           read: data.read || false,
           delivered: data.delivered || false,
-          isDeleted: data.isDeleted || false
+          isDeleted: data.isDeleted || false,
+          isEdited: data.isEdited || false,
+          editedAt: data.editedAt?.toDate(),
+          replyTo: data.replyTo
         } as Message;
       });
       setMessages(msgs);

@@ -13,9 +13,9 @@
   --accent-muted: rgba(58, 188, 244, 0.1);
   
   --text-main: #e9edef;
-  --text-secondary: #8696a0;
-  --text-muted: #667781;
-  --text-time: #8696a0;
+  --text-secondary: #aebac1;
+  --text-muted: #8696a0;
+  --text-time: #aebac1;
   
   --bubble-me: #3abcf4;
   --bubble-them: #202c33;
@@ -41,9 +41,9 @@
   --accent-muted: rgba(58, 188, 244, 0.1);
   
   --text-main: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --text-time: #64748b;
+  --text-secondary: #54656f;
+  --text-muted: #667781;
+  --text-time: #54656f;
   
   --bubble-me: #3abcf4; /* Match dark mode accent for consistency if desired, or light blue */
   --bubble-me-text: #ffffff;
@@ -547,7 +547,7 @@ body {
 
 .empty-content h1 {
   font-size: 2rem;
-  font-weight: 300;
+  font-weight: 500;
   color: var(--text-main);
   margin-bottom: 16px;
 }
@@ -972,6 +972,39 @@ body {
 @keyframes slideInSidebar {
   from { transform: translateX(100%); width: 0; opacity: 0; }
   to { transform: translateX(0); width: 30%; opacity: 1; }
+}
+
+.sidebar-panel-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-sidebar);
+  position: relative;
+  z-index: 200;
+}
+
+.sidebar-panel-header {
+  padding: 14px 24px;
+  background: var(--bg-sidebar);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 60px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.sidebar-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-sidebar); /* Use sidebar background instead of deep for better contrast */
+}
+
+.sidebar-panel-footer {
+  padding: 20px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--glass-border);
 }
 
 .chat-area {
@@ -3186,3 +3219,116 @@ input:checked + .slider:before {
 .skip-text:hover {
   color: var(--text-secondary);
 }
+
+/* --- Panel & Avatar Fixes --- */
+.sidebar-panel-container .avatar {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+  border-radius: 50% !important;
+  background: var(--bg-hover);
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+
+.sidebar-panel-container .avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  cursor: pointer;
+  gap: 16px;
+  transition: background 0.2s;
+  background: var(--bg-sidebar);
+}
+
+.contact-item:hover {
+  background: var(--bg-hover);
+}
+
+.contact-item.selected {
+  background: var(--bg-active);
+}
+
+.contact-name {
+  flex: 1;
+  font-weight: 400;
+  font-size: 1rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--glass-border);
+  margin: 10px 0;
+}
+
+.sidebar-panel-container .large-avatar {
+  width: 200px !important;
+  height: 200px !important;
+  min-width: 200px !important;
+  min-height: 200px !important;
+  border-radius: 50% !important;
+  margin: 0 auto 40px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--bg-hover);
+}
+
+.sidebar-panel-container .large-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.selection-indicator {
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-panel-container .search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-input);
+  padding: 8px 16px;
+  border-radius: 8px;
+  margin: 0;
+}
+
+.sidebar-panel-container .search-bar input {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  outline: none;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+.sidebar-panel-body.scroll-v::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-panel-body.scroll-v::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.sidebar-panel-body.scroll-v::-webkit-scrollbar-track {
+  background: transparent;
+}
+

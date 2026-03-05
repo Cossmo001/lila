@@ -193,11 +193,11 @@ const MessageList: React.FC<MessageListProps> = ({
                     <>
                       <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
                         {msg.read ? (
-                          <CheckCheck size={14} color="#34b7f1" />
+                          <CheckCheck size={14} color="var(--accent)" />
                         ) : msg.delivered ? (
-                          <CheckCheck size={14} color="#8696a0" />
+                          <CheckCheck size={14} color="var(--text-secondary)" />
                         ) : (
-                          <Check size={14} color="#8696a0" />
+                          <Check size={14} color="var(--text-secondary)" />
                         )}
                       </div>
                     </>
