@@ -7,6 +7,33 @@ interface MediaItem {
   type: 'image' | 'video' | 'audio' | 'file';
 }
 
+class EditorErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, errorMsg: string }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorMsg: error.toString() };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Filerobot Editor crashed:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ color: 'white', padding: 20, textAlign: 'center' }}>
+          <h3>Editor Failed to Load</h3>
+          <p style={{ color: '#ff4444', marginTop: 10 }}>{this.state.errorMsg}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 interface MediaPreviewProps {
   media: MediaItem[];
   onClose: () => void;
@@ -143,18 +170,20 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
   if (isEditing && type === 'image' && previewUrl) {
     return (
       <div className="media-preview-overlay" style={{ zIndex: 9999, backgroundColor: '#000', height: '100vh', width: '100vw' }}>
-        <FilerobotImageEditor
-          source={previewUrl}
-          onSave={(editedImageObject) => handleEditorSave(editedImageObject)}
-          onClose={() => setIsEditing(false)}
-          savingPixelRatio={1}
-          previewPixelRatio={1}
-          annotationsCommon={{ fill: '#ff0000' }}
-          Text={{ text: 'Add Text...' }}
-          defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
-          defaultToolId={editorConfig?.defaultToolId || TOOLS.TEXT}
-          useBackendTranslations={false}
-        />
+        <EditorErrorBoundary>
+          <FilerobotImageEditor
+            source={previewUrl}
+            onSave={(editedImageObject) => handleEditorSave(editedImageObject)}
+            onClose={() => setIsEditing(false)}
+            savingPixelRatio={1}
+            previewPixelRatio={1}
+            annotationsCommon={{ fill: '#ff0000' }}
+            Text={{ text: 'Add Text...' }}
+            defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
+            defaultToolId={editorConfig?.defaultToolId || TOOLS.TEXT}
+            useBackendTranslations={false}
+          />
+        </EditorErrorBoundary>
       </div>
     );
   }
