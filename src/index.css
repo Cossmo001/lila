@@ -1902,6 +1902,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .media-preview-header-whatsapp {
@@ -1911,6 +1912,7 @@ body {
   justify-content: space-between;
   align-items: center;
   background: transparent;
+  flex-shrink: 0;
 }
 
 .header-left {
@@ -1948,6 +1950,7 @@ body {
   padding: 20px;
   overflow: hidden;
   background: transparent;
+  min-height: 0;
 }
 
 .media-preview-image-wrapper {
@@ -1960,6 +1963,7 @@ body {
   height: 100%;
   max-height: 500px; 
   margin: 0 auto;
+  min-height: 0;
 }
 
 .media-preview-content {
@@ -1976,6 +1980,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .footer-content-wrapper {
