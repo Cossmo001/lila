@@ -42,6 +42,7 @@ function App() {
     type: 'audio' | 'video';
     recipient: any;
     isIncoming: boolean;
+    isMinimized?: boolean;
   } | null>(null);
   const [showPermissionOverlay, setShowPermissionOverlay] = useState(false);
 
@@ -184,7 +185,8 @@ function App() {
           status: 'ringing',
           type: data.type,
           recipient: data.caller,
-          isIncoming: true
+          isIncoming: true,
+          isMinimized: false
         });
 
         // Trigger Call Notification
@@ -331,7 +333,8 @@ function App() {
         status: 'ringing',
         type,
         recipient: recipientData,
-        isIncoming: false
+        isIncoming: false,
+        isMinimized: false
       });
     } catch (error) {
       console.error('Failed to initiate call:', error);
@@ -525,8 +528,11 @@ function App() {
           type={activeCall.type}
           recipient={activeCall.recipient}
           isIncoming={activeCall.isIncoming}
+          isMinimized={activeCall.isMinimized}
           onEndCall={endCall}
           onAccept={acceptCall}
+          onMinimize={() => setActiveCall(prev => prev ? { ...prev, isMinimized: true } : null)}
+          onRestore={() => setActiveCall(prev => prev ? { ...prev, isMinimized: false } : null)}
         />
       )}
 

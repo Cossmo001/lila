@@ -8,6 +8,8 @@ interface AgoraContextType {
   localAudioTrack: IMicrophoneAudioTrack | null;
   localVideoTrack: ICameraVideoTrack | null;
   remoteUsers: any[];
+  connectionState: string;
+  networkQuality: number;
   join: (channelName: string, type: 'audio' | 'video') => Promise<void>;
   leave: () => Promise<void>;
   muteAudio: (mute: boolean) => void;
@@ -27,6 +29,8 @@ export const AgoraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
+  const [connectionState, setConnectionState] = useState<string>('DISCONNECTED');
+  const [networkQuality, setNetworkQuality] = useState<number>(0);
 
   // Use refs to avoid stale closures in listeners and leave function
   const audioTrackRef = React.useRef<IMicrophoneAudioTrack | null>(null);
@@ -47,12 +51,25 @@ export const AgoraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
     };
 
+    const handleConnectionStateChange = (curState: string) => {
+      setConnectionState(curState);
+    };
+
+    const handleNetworkQuality = (stats: { uplinkNetworkQuality: number; downlinkNetworkQuality: number }) => {
+      // Use the worse of the two for overall quality
+      setNetworkQuality(Math.max(stats.uplinkNetworkQuality, stats.downlinkNetworkQuality));
+    };
+
     client.on('user-published', handleUserPublished);
     client.on('user-unpublished', handleUserUnpublished);
+    client.on('connection-state-change', handleConnectionStateChange);
+    client.on('network-quality', handleNetworkQuality);
 
     return () => {
       client.off('user-published', handleUserPublished);
       client.off('user-unpublished', handleUserUnpublished);
+      client.off('connection-state-change', handleConnectionStateChange);
+      client.off('network-quality', handleNetworkQuality);
     };
   }, [client]);
 
@@ -120,7 +137,18 @@ export const AgoraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <AgoraContext.Provider value={{ client, localAudioTrack, localVideoTrack, remoteUsers, join, leave, muteAudio, muteVideo }}>
+    <AgoraContext.Provider value={{ 
+      client, 
+      localAudioTrack, 
+      localVideoTrack, 
+      remoteUsers, 
+      connectionState,
+      networkQuality,
+      join, 
+      leave, 
+      muteAudio, 
+      muteVideo 
+    }}>
       {children}
     </AgoraContext.Provider>
   );

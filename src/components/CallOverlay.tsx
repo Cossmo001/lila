@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Volume2, Video, VideoOff } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, Video, VideoOff, Minimize2, Maximize2 } from 'lucide-react';
 import { useAgora } from '../context/AgoraContext';
 
 interface CallOverlayProps {
@@ -10,12 +10,25 @@ interface CallOverlayProps {
     avatarUrl?: string;
   };
   isIncoming?: boolean;
+  isMinimized?: boolean;
   onEndCall: () => void;
   onAccept?: () => void;
+  onMinimize?: () => void;
+  onRestore?: () => void;
 }
 
-const CallOverlay: React.FC<CallOverlayProps> = ({ status, type: initialType, recipient, isIncoming, onEndCall, onAccept }) => {
-  const { localVideoTrack, remoteUsers, muteAudio, muteVideo } = useAgora();
+const CallOverlay: React.FC<CallOverlayProps> = ({ 
+  status, 
+  type: initialType, 
+  recipient, 
+  isIncoming, 
+  isMinimized,
+  onEndCall, 
+  onAccept,
+  onMinimize,
+  onRestore
+}) => {
+  const { localVideoTrack, remoteUsers, muteAudio, muteVideo, connectionState, networkQuality } = useAgora();
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [type, setType] = useState(initialType);
@@ -68,6 +81,44 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ status, type: initialType, re
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getStatusText = () => {
+    if (status === 'ringing') return isIncoming ? 'Incoming Video Call' : 'Ringing...';
+    if (status === 'connecting') return 'Connecting...';
+    
+    // During active call, check connection health
+    if (connectionState === 'RECONNECTING' || networkQuality >= 5) {
+      return 'Reconnecting...';
+    }
+    
+    if (networkQuality === 4) {
+      return 'Poor connection...';
+    }
+
+    return type === 'audio' ? formatTime(timer) : 'Video Call';
+  };
+
+  if (isMinimized) {
+    return (
+      <div className="call-minimized-bubble" onClick={onRestore}>
+        <div className="mini-avatar-wrapper">
+          {recipient.avatarUrl ? (
+            <img src={recipient.avatarUrl} alt={recipient.username} className="mini-avatar-img" />
+          ) : (
+            <div className="mini-avatar-placeholder">{recipient.username[0].toUpperCase()}</div>
+          )}
+          <div className="mini-status-dot pulse" />
+        </div>
+        <div className="mini-call-info">
+          <span className="mini-name">{recipient.username}</span>
+          <span className="mini-timer">{status === 'active' ? formatTime(timer) : 'Calling...'}</span>
+        </div>
+        <button className="mini-restore-btn">
+          <Maximize2 size={16} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={`call-overlay fade-in ${type === 'video' ? 'video-mode' : ''} ${status === 'ringing' ? 'is-ringing' : ''}`}>
       {/* Immersive Blurred Background */}
@@ -77,6 +128,10 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ status, type: initialType, re
       />
       <div className="call-overlay-gradient" />
       
+      <button className="minimize-btn-top" onClick={onMinimize} title="Minimize">
+        <Minimize2 size={24} />
+      </button>
+
       {status === 'active' && type === 'video' && (
         <div className="video-streams-premium">
           <div ref={remoteVideoRef} className="remote-video-premium" />
@@ -101,9 +156,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ status, type: initialType, re
           )}
           <h1 className="caller-name">{recipient.username}</h1>
           <div className="call-status-text">
-            {status === 'ringing' ? (isIncoming ? 'Incoming Video Call' : 'Ringing...') : 
-             status === 'connecting' ? 'Connecting...' : 
-             type === 'audio' ? formatTime(timer) : 'Video Call'}
+            {getStatusText()}
           </div>
         </div>
       </div>
