@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Sticker, Download, Plus } from 'lucide-react';
 
-interface MediaPreviewProps {
+interface MediaItem {
   file: File;
   type: 'image' | 'video' | 'audio' | 'file';
-  onClose: () => void;
-  onSend: (file: File, caption: string) => void;
 }
 
-const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend }) => {
-  const [caption, setCaption] = useState('');
+interface MediaPreviewProps {
+  media: MediaItem[];
+  onClose: () => void;
+  onSend: (mediaWithCaptions: (MediaItem & { caption: string })[]) => void;
+  onAddMedia: (newMedia: MediaItem[]) => void;
+}
+
+const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onAddMedia }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [captions, setCaptions] = useState<{ [index: number]: string }>({});
+  const addMediaInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const currentMedia = media[currentIndex];
+  const { file, type } = currentMedia;
   
   const previewUrl = useMemo(() => {
     if (type === 'image' || type === 'video') {
@@ -30,8 +40,24 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
   }, [onClose, previewUrl]);
 
   const handleSend = () => {
-    onSend(file, caption);
+    const payloads = media.map((item, index) => ({
+      ...item,
+      caption: captions[index] || ''
+    }));
+    onSend(payloads);
     onClose();
+  };
+
+  const handleAddMoreMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newMedia: MediaItem[] = Array.from(files).map((file) => {
+        const isVideo = file.type.startsWith('video/');
+        return { file, type: isVideo ? 'video' : 'image' };
+      });
+      onAddMedia(newMedia);
+      if (e.target) e.target.value = '';
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -114,8 +140,8 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
                 <input 
                   type="text" 
                   placeholder="Add a caption" 
-                  value={caption} 
-                  onChange={(e) => setCaption(e.target.value)}
+                  value={captions[currentIndex] || ''} 
+                  onChange={(e) => setCaptions(prev => ({ ...prev, [currentIndex]: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   autoFocus
                 />
@@ -123,14 +149,35 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
             </div>
 
             <div className="thumbnail-strip">
-              {type === 'image' && previewUrl && (
-                <div className="thumbnail-item active">
-                  <img src={previewUrl} alt="thumb" />
-                </div>
-              )}
-              <div className="thumbnail-add-btn">
+              {media.map((item, index) => {
+                if (item.type !== 'image' && item.type !== 'video') return null;
+                const thumbUrl = URL.createObjectURL(item.file);
+                return (
+                  <div 
+                    key={index} 
+                    className={`thumbnail-item ${index === currentIndex ? 'active' : ''}`}
+                    onClick={() => setCurrentIndex(index)}
+                  >
+                    {item.type === 'image' ? (
+                      <img src={thumbUrl} alt="thumb" />
+                    ) : (
+                      <video src={thumbUrl} muted />
+                    )}
+                  </div>
+                );
+              })}
+              <div className="thumbnail-add-btn" onClick={() => addMediaInputRef.current?.click()}>
                 <Plus size={24} />
               </div>
+              <input 
+                type="file" 
+                ref={addMediaInputRef} 
+                className="hidden" 
+                hidden
+                multiple 
+                accept="image/*,video/*" 
+                onChange={handleAddMoreMedia} 
+              />
             </div>
             
             <button className="send-media-fab" onClick={handleSend} title="Send">

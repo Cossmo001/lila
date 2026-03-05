@@ -47,7 +47,7 @@ function App() {
     isMinimized?: boolean;
   } | null>(null);
   const [showPermissionOverlay, setShowPermissionOverlay] = useState(false);
-  const [pendingMedia, setPendingMedia] = useState<{ file: File, type: 'image' | 'video' | 'audio' | 'file' } | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File, type: 'image' | 'video' | 'audio' | 'file' }[] | null>(null);
   const [activeMedia, setActiveMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
@@ -478,15 +478,17 @@ function App() {
                   isUploadingExternal={isUploadingMedia}
                 />
                 
-                {pendingMedia && (
+                {pendingMedia && pendingMedia.length > 0 && (
                   <MediaPreview 
-                    file={pendingMedia.file} 
-                    type={pendingMedia.type} 
+                    media={pendingMedia} 
                     onClose={() => setPendingMedia(null)} 
-                    onSend={async (file, caption) => {
+                    onAddMedia={(newMedia) => setPendingMedia(prev => prev ? [...prev, ...newMedia] : newMedia)}
+                    onSend={async (mediaItems) => {
                       setIsUploadingMedia(true);
                       try {
-                        await sendMediaMessage(file, pendingMedia.type, caption);
+                        for (const item of mediaItems) {
+                          await sendMediaMessage(item.file, item.type, item.caption);
+                        }
                       } finally {
                         setIsUploadingMedia(false);
                         setPendingMedia(null);

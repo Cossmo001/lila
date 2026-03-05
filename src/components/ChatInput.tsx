@@ -9,7 +9,7 @@ interface ChatInputProps {
   replyingTo?: any;
   editingMessage?: any;
   onCancelAction?: () => void;
-  onMediaSelected?: (media: { file: File, type: 'image' | 'video' | 'audio' | 'file' } | null) => void;
+  onMediaSelected?: (media: { file: File, type: 'image' | 'video' | 'audio' | 'file' }[] | null) => void;
   isUploadingExternal?: boolean;
 }
 
@@ -81,9 +81,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onMediaSelected?.({ file, type });
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const mediaArray = Array.from(files).map(file => ({ file, type }));
+      onMediaSelected?.(mediaArray);
       setShowAttachments(false);
       if (e.target) e.target.value = ''; // Clear the input so the same file can be selected again
     }
@@ -103,7 +104,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       const response = await fetch(image.webPath!);
       const blob = await response.blob();
       const file = new File([blob], `captured_image.${image.format}`, { type: `image/${image.format}` });
-      onMediaSelected?.({ file, type: 'image' });
+      onMediaSelected?.([{ file, type: 'image' }]);
       setShowAttachments(false);
     } catch (err) {
       console.error("Native media error:", err);
@@ -191,9 +192,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
           <div className="icon-circle" style={{ background: '#ff4b4b' }}><Video size={20} /></div>
           <span>Videos</span>
         </button>
-        <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => handleFileSelect(e, 'image')} />
-        <input type="file" ref={videoInputRef} hidden accept="video/*" onChange={(e) => handleFileSelect(e, 'video')} />
-        <input type="file" ref={docInputRef} hidden onChange={(e) => handleFileSelect(e, 'file')} />
+        <input type="file" ref={fileInputRef} hidden accept="image/*" multiple onChange={(e) => handleFileSelect(e, 'image')} />
+        <input type="file" ref={videoInputRef} hidden accept="video/*" multiple onChange={(e) => handleFileSelect(e, 'video')} />
+        <input type="file" ref={docInputRef} hidden multiple onChange={(e) => handleFileSelect(e, 'file')} />
       </div>
 
       <button className={`action-btn ${showAttachments ? 'active' : ''}`} onClick={() => !isUploading && setShowAttachments(!showAttachments)} disabled={isUploading}>

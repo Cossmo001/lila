@@ -2077,8 +2077,8 @@ body {
 
 .send-media-fab {
   position: absolute;
-  right: -60px; /* Positioned outside the main 800px column */
-  bottom: 0;
+  right: 0; /* Align it to the right edge of the wrapper instead of outside of it */
+  bottom: 0px;
   background: #00a884;
   color: white;
   border: none;
