@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserMinus, LogOut, Trash2 } from 'lucide-react';
+import { X, UserMinus, LogOut, Trash2, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useRef } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, getDoc } from 'firebase/firestore';
 
@@ -15,6 +17,8 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isAdmin = group.groupMetadata?.admins?.includes(user?.uid);
 
   useEffect(() => {
@@ -114,6 +118,39 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !isAdmin) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `groups/${group.id}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(fileName);
+
+      await updateDoc(doc(db, 'chats', group.id), {
+        'groupMetadata.photoURL': publicUrl,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Update local state if needed, but Firestore listener should handle it
+    } catch (err: any) {
+      console.error("Upload group icon error:", err);
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-content premium-modal">
@@ -124,9 +161,33 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
 
         <div className="modal-body scroll-v">
           <div className="profile-hero">
-            <div className="profile-avatar large">
-              {group.groupMetadata?.photoURL ? <img src={group.groupMetadata.photoURL} alt="" /> : group.groupMetadata.name[0].toUpperCase()}
+            <div 
+              className={`profile-avatar large ${isAdmin ? 'editable' : ''}`}
+              onClick={() => isAdmin && fileInputRef.current?.click()}
+              style={{ cursor: isAdmin ? 'pointer' : 'default', position: 'relative' }}
+            >
+              {isUploading ? (
+                <div className="upload-spinner" />
+              ) : group.groupMetadata?.photoURL ? (
+                <img src={group.groupMetadata.photoURL} alt="" />
+              ) : (
+                group.groupMetadata.name[0].toUpperCase()
+              )}
+              {isAdmin && !isUploading && (
+                <div className="avatar-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.2s' }}>
+                  <Camera size={24} color="white" />
+                </div>
+              )}
             </div>
+            {isAdmin && (
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageUpload} 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+              />
+            )}
             <h1>{group.groupMetadata.name}</h1>
             <p>Group • {group.participants.length} members</p>
           </div>

@@ -3,6 +3,9 @@ import { ArrowLeft, Search, Check, Camera, ArrowRight, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
+import { useRef } from 'react';
+
 
 interface CreateGroupPanelProps {
   onClose: () => void;
@@ -18,6 +21,9 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
   const [contacts, setContacts] = useState<any[]>([]);
   const [recentContacts, setRecentContacts] = useState<any[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch recent contacts from chats
   useEffect(() => {
@@ -89,10 +95,37 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
     );
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    }
+  };
+
   const handleCreateGroup = async () => {
     if (!groupName.trim() || selectedContacts.length === 0 || !user) return;
     setIsCreating(true);
     try {
+      let photoURL = '';
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `groups/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(fileName, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(fileName);
+        
+        photoURL = publicUrl;
+      }
+
       const groupId = `group_${Date.now()}`;
       const groupData = {
         id: groupId,
@@ -102,7 +135,8 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
           name: groupName,
           createdBy: user.uid,
           admins: [user.uid],
-          description: ''
+          description: '',
+          photoURL: photoURL
         },
         updatedAt: serverTimestamp(),
         lastMessage: {
@@ -255,13 +289,28 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
         ) : (
           <div className="group-info-inputs" style={{ padding: '32px 24px' }}>
             <div className="avatar-edit-large" style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
-              <div className="large-avatar-whatsapp" style={{ width: '200px', height: '200px', borderRadius: '50%', background: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
-                <Camera size={48} className="text-secondary" />
-                <div className="avatar-overlay-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.2s' }}>
+              <div 
+                className="large-avatar-whatsapp" 
+                onClick={() => fileInputRef.current?.click()}
+                style={{ width: '200px', height: '200px', borderRadius: '50%', background: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
+              >
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Camera size={48} className="text-secondary" />
+                )}
+                <div className="avatar-overlay-hover" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: previewUrl ? 0 : 1, transition: 'opacity 0.2s' }}>
                   <Camera size={32} />
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, marginTop: '8px' }}>ADD GROUP ICON</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, marginTop: '8px' }}>{previewUrl ? 'CHANGE ICON' : 'ADD GROUP ICON'}</span>
                 </div>
               </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+              />
             </div>
             
             <div className="input-group-modern" style={{ borderBottom: '2px solid var(--accent)', paddingBottom: '8px' }}>
