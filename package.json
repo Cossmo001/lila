@@ -23,6 +23,8 @@
     "lucide-react": "^0.576.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-filerobot-image-editor": "^5.0.0-beta.153",
+    "styled-components": "^6.3.11",
     "vite-plugin-pwa": "^1.2.0"
   },
   "devDependencies": {
