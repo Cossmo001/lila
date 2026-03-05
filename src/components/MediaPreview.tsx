@@ -174,7 +174,21 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
 
   if (isEditing && type === 'image' && previewUrl) {
     return (
-      <div className="media-preview-overlay" style={{ zIndex: 9999, backgroundColor: '#000', height: '100vh', width: '100vw' }}>
+      <div 
+        style={{ 
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 99999, 
+          backgroundColor: '#000',
+          width: '100vw',
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
         <EditorErrorBoundary>
           <FilerobotImageEditor
             source={previewUrl}
