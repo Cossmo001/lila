@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Send, FileText, Music } from 'lucide-react';
+import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Sticker, Download, Plus } from 'lucide-react';
 
 interface MediaPreviewProps {
   file: File;
@@ -75,13 +75,23 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
     <div className="media-preview-overlay">
       <div className="media-preview-container">
         <header className="media-preview-header-whatsapp">
-          <button onClick={onClose} className="close-btn-whatsapp" title="Close" style={{ color: '#aebac1', padding: '8px' }}>
-            <X size={24} />
-          </button>
-          <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
-            <span className="preview-title" style={{ fontSize: '1.1rem', fontWeight: 500 }}>Preview</span>
+          <div className="header-left">
+            <button onClick={onClose} className="toolbar-icon-btn" title="Close">
+              <X size={24} />
+            </button>
           </div>
-          <div style={{ width: 44 }} />
+          
+          {type === 'image' && (
+            <div className="header-actions-whatsapp">
+              <button className="toolbar-icon-btn"><Crop size={22} /></button>
+              <button className="toolbar-icon-btn"><Edit2 size={20} /></button>
+              <button className="toolbar-icon-btn"><Type size={22} /></button>
+              <button className="toolbar-icon-btn"><Square size={20} /></button>
+              <button className="toolbar-icon-btn"><Smile size={22} /></button>
+              <button className="toolbar-icon-btn"><Sticker size={22} /></button>
+              <button className="toolbar-icon-btn"><Download size={22} /></button>
+            </div>
+          )}
         </header>
 
         <main className="media-preview-main">
@@ -89,17 +99,34 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ file, type, onClose, onSend
         </main>
 
         <footer className="media-preview-footer-whatsapp">
-          <div className="caption-input-container-whatsapp">
-            <input 
-              type="text" 
-              placeholder="Add a caption..." 
-              value={caption} 
-              onChange={(e) => setCaption(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              autoFocus
-            />
-            <button className="send-media-btn-whatsapp" onClick={handleSend} title="Send">
-              <Send size={20} />
+          <div className="footer-content-wrapper">
+            <div className="caption-input-wrapper">
+              <div className="caption-input-container-whatsapp">
+                <button className="emoji-btn"><Smile size={24} color="#8696a0" /></button>
+                <input 
+                  type="text" 
+                  placeholder="Add a caption" 
+                  value={caption} 
+                  onChange={(e) => setCaption(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="thumbnail-strip">
+              {type === 'image' && previewUrl && (
+                <div className="thumbnail-item active">
+                  <img src={previewUrl} alt="thumb" />
+                </div>
+              )}
+              <div className="thumbnail-add-btn">
+                <Plus size={24} />
+              </div>
+            </div>
+            
+            <button className="send-media-fab" onClick={handleSend} title="Send">
+              <Send size={24} />
             </button>
           </div>
         </footer>

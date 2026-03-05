@@ -530,31 +530,6 @@ function App() {
       )}
       </div>
 
-      {pendingMedia && (
-        <MediaPreview 
-          file={pendingMedia.file} 
-          type={pendingMedia.type} 
-          onClose={() => setPendingMedia(null)} 
-          onSend={async (file, caption) => {
-            setIsUploadingMedia(true);
-            try {
-              await sendMediaMessage(file, pendingMedia.type, caption);
-            } finally {
-              setIsUploadingMedia(false);
-              setPendingMedia(null);
-            }
-          }}
-        />
-      )}
-
-      {activeMedia && (
-        <MediaViewer 
-          url={activeMedia.url} 
-          type={activeMedia.type} 
-          onClose={() => setActiveMedia(null)} 
-        />
-      )}
-
       {activeCall && (
         <CallOverlay 
           status={activeCall.status}
@@ -592,6 +567,31 @@ function App() {
         </button>
         <span className="fab-label">Feedback</span>
       </div>
+
+      {pendingMedia && (
+        <MediaPreview 
+          file={pendingMedia.file} 
+          type={pendingMedia.type} 
+          onClose={() => setPendingMedia(null)} 
+          onSend={async (file, caption) => {
+            setIsUploadingMedia(true);
+            try {
+              await sendMediaMessage(file, pendingMedia.type, caption);
+            } finally {
+              setIsUploadingMedia(false);
+              setPendingMedia(null);
+            }
+          }}
+        />
+      )}
+
+      {activeMedia && (
+        <MediaViewer 
+          url={activeMedia.url} 
+          type={activeMedia.type} 
+          onClose={() => setActiveMedia(null)} 
+        />
+      )}
     </div>
   );
 }
