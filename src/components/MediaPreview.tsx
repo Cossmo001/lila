@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Sticker, Download, Plus } from 'lucide-react';
+import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Download, Plus } from 'lucide-react';
+import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
 
 interface MediaItem {
   file: File;
@@ -11,12 +12,16 @@ interface MediaPreviewProps {
   onClose: () => void;
   onSend: (mediaWithCaptions: (MediaItem & { caption: string })[]) => void;
   onAddMedia: (newMedia: MediaItem[]) => void;
+  onUpdateMedia?: (index: number, updatedMedia: MediaItem) => void;
 }
 
-const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onAddMedia }) => {
+const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onAddMedia, onUpdateMedia }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [captions, setCaptions] = useState<{ [index: number]: string }>({});
   const addMediaInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editorConfig, setEditorConfig] = useState<any>(null);
   
   const currentMedia = media[currentIndex];
   const { file, type } = currentMedia;
@@ -46,6 +51,36 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     }));
     onSend(payloads);
     onClose();
+  };
+
+  const handleDownload = () => {
+    if (!previewUrl) return;
+    const a = document.createElement('a');
+    a.href = previewUrl;
+    a.download = file.name || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const openEditor = (tabId: string, toolId: string) => {
+    if (type !== 'image') return;
+    setEditorConfig({ defaultTabId: tabId, defaultToolId: toolId });
+    setIsEditing(true);
+  };
+
+  const handleEditorSave = async (editedImageObject: any) => {
+    setIsEditing(false);
+    try {
+      const response = await fetch(editedImageObject.imageBase64);
+      const blob = await response.blob();
+      const editedFile = new File([blob], file.name || 'edited_image.png', { type: file.type || 'image/png' });
+      if (onUpdateMedia) {
+        onUpdateMedia(currentIndex, { file: editedFile, type: 'image' });
+      }
+    } catch (e) {
+      console.error("Failed to save edited image:", e);
+    }
   };
 
   const handleAddMoreMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,6 +140,33 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     }
   };
 
+  if (isEditing && type === 'image' && previewUrl) {
+    return (
+      <div className="media-preview-overlay" style={{ zIndex: 9999 }}>
+        <FilerobotImageEditor
+          source={previewUrl}
+          onSave={(editedImageObject) => handleEditorSave(editedImageObject)}
+          onClose={() => setIsEditing(false)}
+          savingPixelRatio={1}
+          previewPixelRatio={1}
+          annotationsCommon={{ fill: '#ff0000' }}
+          Text={{ text: 'Add Text...' }}
+          defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
+          defaultToolId={editorConfig?.defaultToolId || TOOLS.TEXT}
+          theme={{
+            palette: {
+              'bg-primary-active': '#111b21',
+              'bg-active': '#202c33',
+            },
+            typography: {
+              fontFamily: 'inherit',
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="media-preview-overlay">
       <div className="media-preview-container">
@@ -117,13 +179,12 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
           
           {type === 'image' && (
             <div className="header-actions-whatsapp">
-              <button className="toolbar-icon-btn"><Crop size={22} /></button>
-              <button className="toolbar-icon-btn"><Edit2 size={20} /></button>
-              <button className="toolbar-icon-btn"><Type size={22} /></button>
-              <button className="toolbar-icon-btn"><Square size={20} /></button>
-              <button className="toolbar-icon-btn"><Smile size={22} /></button>
-              <button className="toolbar-icon-btn"><Sticker size={22} /></button>
-              <button className="toolbar-icon-btn"><Download size={22} /></button>
+              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ADJUST, TOOLS.CROP)} title="Crop/Rotate"><Crop size={22} /></button>
+              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.PEN)} title="Draw"><Edit2 size={20} /></button>
+              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.TEXT)} title="Text"><Type size={22} /></button>
+              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.RECT)} title="Shapes"><Square size={20} /></button>
+              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.IMAGE)} title="Stickers"><Smile size={22} /></button>
+              <button className="toolbar-icon-btn" onClick={handleDownload} title="Download"><Download size={22} /></button>
             </div>
           )}
         </header>

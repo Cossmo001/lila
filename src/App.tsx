@@ -483,6 +483,14 @@ function App() {
                     media={pendingMedia} 
                     onClose={() => setPendingMedia(null)} 
                     onAddMedia={(newMedia) => setPendingMedia(prev => prev ? [...prev, ...newMedia] : newMedia)}
+                    onUpdateMedia={(index, updatedMedia) => {
+                      setPendingMedia(prev => {
+                        if (!prev) return null;
+                        const newArray = [...prev];
+                        newArray[index] = updatedMedia;
+                        return newArray;
+                      });
+                    }}
                     onSend={async (mediaItems) => {
                       setIsUploadingMedia(true);
                       try {
