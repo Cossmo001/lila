@@ -101,17 +101,38 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     setIsEditing(true);
   };
 
+  const dataURItoFile = (dataURI: string, filename: string) => {
+    const arr = dataURI.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  };
+
   const handleEditorSave = async (editedImageObject: any) => {
-    setIsEditing(false);
     try {
-      const response = await fetch(editedImageObject.imageBase64);
-      const blob = await response.blob();
-      const editedFile = new File([blob], file.name || 'edited_image.png', { type: file.type || 'image/png' });
+      const dataUri = editedImageObject?.imageBase64;
+      if (!dataUri) {
+        console.error("No imageBase64 returned from editor", editedImageObject);
+        alert("Failed to save: No image data returned.");
+        setIsEditing(false);
+        return;
+      }
+      
+      const editedFile = dataURItoFile(dataUri, file.name || 'edited_image.png');
       if (onUpdateMedia) {
         onUpdateMedia(currentIndex, { file: editedFile, type: 'image' });
       }
+      setIsEditing(false);
     } catch (e) {
       console.error("Failed to save edited image:", e);
+      alert("Failed to save image. Please check the console.");
+      setIsEditing(false);
     }
   };
 
