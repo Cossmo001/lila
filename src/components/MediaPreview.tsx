@@ -213,10 +213,15 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
         <EditorErrorBoundary>
           <FilerobotImageEditor
             source={previewUrl}
-            onSave={(editedImageObject) => handleEditorSave(editedImageObject)}
+            onSave={(editedImageObject) => {
+              console.log("Save clicked! Image Object: ", !!editedImageObject.imageBase64);
+              handleEditorSave(editedImageObject);
+            }}
             onClose={() => setIsEditing(false)}
             savingPixelRatio={1}
             previewPixelRatio={1}
+            disableSaveIfNoChanges={false}
+            observePluginContainerSize={true}
             annotationsCommon={{ fill: '#ff0000' }}
             Text={{ text: 'Add Text...' }}
             defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
