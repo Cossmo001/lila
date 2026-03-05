@@ -1887,9 +1887,9 @@ body {
 
 /* --- Media Preview (Sending) --- */
 .media-preview-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  background: var(--bg-sidebar);
+  background: var(--bg-chat);
   z-index: 10000;
   display: flex;
   flex-direction: column;
@@ -1925,7 +1925,7 @@ body {
 .toolbar-icon-btn {
   background: transparent;
   border: none;
-  color: #aebac1;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1935,7 +1935,7 @@ body {
 }
 
 .toolbar-icon-btn:hover {
-  color: #e9edef;
+  color: var(--text-main);
 }
 
 .media-preview-main {
@@ -1945,7 +1945,7 @@ body {
   justify-content: center;
   padding: 20px;
   overflow: hidden;
-  background: #0b141a; /* Darker background for image area */
+  background: transparent;
 }
 
 .media-preview-content {
@@ -1956,7 +1956,7 @@ body {
 }
 
 .media-preview-footer-whatsapp {
-  background: var(--bg-sidebar);
+  background: transparent;
   padding: 16px 0 24px 0;
   display: flex;
   flex-direction: column;
