@@ -26,6 +26,8 @@ interface NotificationContextType {
   requestNativePermission: (prompt?: boolean) => Promise<boolean>;
   sendNativeNotification: (title: string, options?: NotificationOptions) => void;
   syncFCMToken: () => Promise<void>;
+  syncOneSignalId: () => Promise<void>;
+  sendOneSignalNotification: (targetId: string, title: string, body: string, data?: any) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -185,6 +187,63 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.error("FCM Token sync failed:", err);
     }
   }, [user?.uid, requestNativePermission]);
+  
+  const syncOneSignalId = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      // @ts-ignore
+      const OneSignal = window.OneSignal || (window.OneSignalDeferred && window.OneSignalDeferred[0]);
+      if (!OneSignal) return;
+
+      // Wait for OneSignal to be ready and get permission
+      OneSignal.push(async function() {
+        const isOptedIn = await OneSignal.Notifications.permission;
+        if (!isOptedIn) return;
+
+        const subscriptionId = await OneSignal.User.PushSubscription.id;
+        if (subscriptionId) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            oneSignalId: subscriptionId,
+            lastOneSignalSync: new Date()
+          });
+          console.log("OneSignal ID synced:", subscriptionId);
+        }
+      });
+    } catch (err) {
+      console.error("OneSignal sync failed:", err);
+    }
+  }, [user?.uid]);
+
+  const sendOneSignalNotification = useCallback(async (targetId: string, title: string, body: string, data?: any) => {
+    // WARNING: This is a client-side trigger. For production, move this to a backend.
+    // Replace YOUR_REST_API_KEY with the actual key from OneSignal dashboard
+    const REST_API_KEY = "os_v2_app_usrblfojpjflxjxkjh5eguws337kolhzxg6u5qfilgcvfk63shnpz3wapybptg4aqgajyh7hgiva3p4ivttrrbia4ojk2qnkqnt4vbq"; 
+    const APP_ID = "a4a21595-c97a-4abb-a6ea-49fa4352d2de";
+
+    try {
+      await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': `Basic ${REST_API_KEY}`
+        },
+        body: JSON.stringify({
+          app_id: APP_ID,
+          include_subscription_ids: [targetId],
+          contents: { "en": body },
+          headings: { "en": title },
+          data: data,
+          web_buttons: [
+            { id: "read-more", text: "Read", icon: "" }
+          ]
+        })
+      });
+      console.log("OneSignal notification sent to:", targetId);
+    } catch (err) {
+      console.error("Failed to send OneSignal notification:", err);
+    }
+  }, []);
 
   // Listen for native push notifications and token registration
   useEffect(() => {
@@ -263,7 +322,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [showToast, playTone]);
 
   return (
-    <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification, syncFCMToken }}>
+    <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification }}>
       {children}
       <div className="toast-container">
         {toasts.map((toast) => (

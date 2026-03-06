@@ -28,7 +28,7 @@ import './index.css';
 function App() {
   const { user, userData, loading } = useAuth();
   const { join, leave } = useAgora();
-  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken } = useNotification();
+  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification } = useNotification();
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
   const { messages, sendMessage: originalSendMessage, sendMediaMessage, deleteMessage, editMessage } = useChat(activeChat?.id || null, user?.uid || null);
@@ -68,8 +68,9 @@ function App() {
       setShowPermissionOverlay(true);
     } else {
       syncFCMToken();
+      syncOneSignalId();
     }
-  }, [user?.uid, userData?.settings?.theme, syncFCMToken]);
+  }, [user?.uid, userData?.settings?.theme, syncFCMToken, syncOneSignalId]);
 
   // Listen to total unread chats count
   useEffect(() => {
@@ -272,6 +273,16 @@ function App() {
     
     if (userData?.settings?.notifications?.tones !== false) {
       playTone('outgoing');
+    }
+
+    // Trigger OneSignal Background Notification
+    if (recipientData?.oneSignalId) {
+      sendOneSignalNotification(
+        recipientData.oneSignalId,
+        userData.username || 'New Message',
+        text || 'Sent an attachment',
+        { chatId: activeChat?.id }
+      );
     }
   };
 
