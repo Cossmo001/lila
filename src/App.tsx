@@ -25,10 +25,12 @@ import FeedbackSection from './components/FeedbackSection';
 import { addDoc, serverTimestamp, updateDoc, writeBatch, increment } from 'firebase/firestore';
 import './index.css';
 
+const PERMISSION_VERSION = "1.1"; // Increment this to force all users to re-request permissions
+
 function App() {
   const { user, userData, loading } = useAuth();
   const { join, leave } = useAgora();
-  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification } = useNotification();
+  const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification, refreshNotifications } = useNotification();
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [recipientData, setRecipientData] = useState<any | null>(null);
   const { messages, sendMessage: originalSendMessage, sendMediaMessage, deleteMessage, editMessage } = useChat(activeChat?.id || null, user?.uid || null);
@@ -62,6 +64,15 @@ function App() {
     const theme = userData?.settings?.theme || 'dark';
     document.body.setAttribute('data-theme', theme);
 
+    // Auto-refresh permissions if version changed (runs once per update per user)
+    const versionKey = `last_permission_version_${user.uid}`;
+    const lastVersion = localStorage.getItem(versionKey);
+    if (lastVersion !== PERMISSION_VERSION) {
+      localStorage.removeItem(`permissions_handled_${user.uid}`);
+      localStorage.setItem(versionKey, PERMISSION_VERSION);
+      // No need to call refreshNotifications here, the overlay will handle it when it appears
+    }
+
     // Check if permissions have been handled for this user
     const handled = localStorage.getItem(`permissions_handled_${user.uid}`);
     if (!handled) {
@@ -70,7 +81,7 @@ function App() {
       syncFCMToken();
       syncOneSignalId();
     }
-  }, [user?.uid, userData?.settings?.theme, syncFCMToken, syncOneSignalId]);
+  }, [user?.uid, userData?.settings?.theme, syncFCMToken, syncOneSignalId, refreshNotifications]);
 
   // Listen to total unread chats count
   useEffect(() => {

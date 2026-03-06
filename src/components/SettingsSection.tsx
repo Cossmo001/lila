@@ -10,7 +10,7 @@ type SubView = 'main' | 'account' | 'privacy' | 'notifications' | 'chats' | 'wal
 
 const SettingsSection: React.FC = () => {
   const { user, userData, updateProfile, unblockUser } = useAuth();
-  const { requestNativePermission } = useNotification();
+  const { requestNativePermission, refreshNotifications } = useNotification();
   const [subView, setSubView] = useState<SubView>('main');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [tempUsername, setTempUsername] = useState(userData?.username || '');
@@ -306,6 +306,19 @@ const SettingsSection: React.FC = () => {
           <input type="checkbox" checked={userData?.settings?.notifications?.desktop !== false} onChange={handleToggleDesktopNotifications} />
           <span className="slider"></span>
         </label>
+      </div>
+      
+      <div className="settings-item" style={{ marginTop: '20px' }} onClick={async () => {
+        if (confirm("This will re-request all permissions and refresh your notification IDs. Continue?")) {
+          localStorage.removeItem(`permissions_handled_${user?.uid}`);
+          await refreshNotifications();
+          window.location.reload(); // Force reload to trigger the overlay check
+        }
+      }}>
+        <div className="settings-text">
+          <span style={{ color: 'var(--accent)' }}>Force Refresh Permissions</span>
+          <p>Reset and re-request all device permissions.</p>
+        </div>
       </div>
     </div>
   );

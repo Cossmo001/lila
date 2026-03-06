@@ -28,6 +28,7 @@ interface NotificationContextType {
   syncFCMToken: () => Promise<void>;
   syncOneSignalId: () => Promise<void>;
   sendOneSignalNotification: (targetId: string, title: string, body: string, data?: any) => Promise<void>;
+  refreshNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -245,6 +246,35 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, []);
 
+  const refreshNotifications = useCallback(async () => {
+    try {
+      // 1. Force Capacitor to re-prompt if possible
+      if (Capacitor.isNativePlatform()) {
+        await PushNotifications.register();
+      }
+      
+      // 2. Re-sync tokens
+      await syncFCMToken();
+      
+      // 3. Re-sync OneSignal
+      // @ts-ignore
+      const OneSignal = window.OneSignal || (window.OneSignalDeferred && window.OneSignalDeferred[0]);
+      if (OneSignal) {
+        OneSignal.push(async function() {
+          await OneSignal.Notifications.requestPermission();
+          await syncOneSignalId();
+        });
+      }
+
+      // 4. Also trigger standard Web permission request as a fallback
+      if (!Capacitor.isNativePlatform() && 'Notification' in window) {
+        await Notification.requestPermission();
+      }
+    } catch (err) {
+      console.error("Manual refresh failed:", err);
+    }
+  }, [syncFCMToken, syncOneSignalId]);
+
   // Listen for native push notifications and token registration
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || !user?.uid) return;
@@ -322,7 +352,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [showToast, playTone]);
 
   return (
-    <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification }}>
+    <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification, refreshNotifications }}>
       {children}
       <div className="toast-container">
         {toasts.map((toast) => (

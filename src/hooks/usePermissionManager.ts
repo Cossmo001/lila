@@ -126,7 +126,7 @@ export const usePermissionManager = () => {
   }, []);
 
   return {
-    status,
+    setStatus,
     checkPermissions,
     requestAll,
   };
