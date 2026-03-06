@@ -14,7 +14,7 @@ export default defineConfig({
         short_name: 'Kadi',
         description: 'A premium blue-themed chat application by Kadi',
         theme_color: '#3abcf4',
-        gcm_sender_id: '103953800507',
+        ...({ gcm_sender_id: '103953800507' } as any),
         icons: [
           {
             src: 'pwa-192x192.png',
