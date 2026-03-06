@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Camera } from '@capacitor/camera';
 import { Filesystem } from '@capacitor/filesystem';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 export interface PermissionStatus {
   camera: 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'limited' | 'unknown';
@@ -33,7 +34,8 @@ export const usePermissionManager = () => {
         newStatus.storage = fsPerm.publicStorage;
 
         const pushPerm = await PushNotifications.checkPermissions();
-        newStatus.notifications = pushPerm.receive;
+        const localPerm = await LocalNotifications.checkPermissions();
+        newStatus.notifications = (pushPerm.receive === 'granted' || localPerm.display === 'granted') ? 'granted' : pushPerm.receive;
         
         // Microphone is often bundled with Camera or handled via getUserMedia
         // For standard Capacitor, we might need a specific plugin for just mic, 
@@ -74,8 +76,9 @@ export const usePermissionManager = () => {
     try {
       // 1. Notifications
       if (isNative) {
-        const res = await PushNotifications.requestPermissions();
-        results.notifications = res.receive;
+        const pushRes = await PushNotifications.requestPermissions();
+        const localRes = await LocalNotifications.requestPermissions();
+        results.notifications = (pushRes.receive === 'granted' || localRes.display === 'granted') ? 'granted' : pushRes.receive;
       } else if ('Notification' in window) {
         const res = await Notification.requestPermission();
         results.notifications = res as any;

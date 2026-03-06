@@ -169,6 +169,29 @@ body {
   background-color: var(--bg-chat);
 }
 
+.date-stamp-container {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.date-stamp {
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-light);
+}
+
 .message {
   max-width: 65%;
   padding: 8px 12px;

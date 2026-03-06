@@ -14,6 +14,7 @@ export default defineConfig({
         short_name: 'Kadi',
         description: 'A premium blue-themed chat application by Kadi',
         theme_color: '#3abcf4',
+        gcm_sender_id: '103953800507',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -33,7 +34,11 @@ export default defineConfig({
         ]
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 4000000 // 4MB
+        maximumFileSizeToCacheInBytes: 4000000, // 4MB
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,js}'],
+        additionalManifestEntries: [
+          { url: 'firebase-messaging-sw.js', revision: null }
+        ]
       }
     })
   ],

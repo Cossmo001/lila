@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { MessageSquare, Phone, Info, X } from 'lucide-react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import { messaging, db } from '../lib/firebase';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
@@ -75,12 +76,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const requestNativePermission = useCallback(async (prompt: boolean = true) => {
     if (Capacitor.isNativePlatform()) {
       try {
-        const permStatus = await PushNotifications.checkPermissions();
-        if (permStatus.receive === 'granted') return true;
+        const pushStatus = await PushNotifications.checkPermissions();
+        const localStatus = await LocalNotifications.checkPermissions();
+        
+        if (pushStatus.receive === 'granted' && localStatus.display === 'granted') return true;
         if (!prompt) return false;
         
-        const result = await PushNotifications.requestPermissions();
-        return result.receive === 'granted';
+        const pushResult = await PushNotifications.requestPermissions();
+        const localResult = await LocalNotifications.requestPermissions();
+        
+        return pushResult.receive === 'granted' || localResult.display === 'granted';
       } catch (err) {
         console.error("Native permission request failed:", err);
         return false;
@@ -100,6 +105,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const sendNativeNotification = useCallback(async (title: string, options?: NotificationOptions) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              title,
+              body: options?.body || '',
+              id: Math.floor(Math.random() * 1000000),
+              extra: options?.data,
+              smallIcon: 'ic_stat_icon_config_sample',
+              iconColor: '#3abcf4',
+              sound: 'beep.wav'
+            }
+          ]
+        });
+      } catch (err) {
+        console.error("Capacitor LocalNotification failed:", err);
+      }
+      return;
+    }
+
     if (Notification.permission === 'granted' && document.hidden) {
       try {
         const registration = await navigator.serviceWorker.ready;

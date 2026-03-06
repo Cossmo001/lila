@@ -130,11 +130,12 @@ function App() {
               });
             }
 
-            // Show Native notification if browser/tab is hidden
+            // Show Native notification
             if (userData?.settings?.notifications?.desktop !== false) {
               sendNativeNotification(lastMsg.senderName || 'New Message', {
                 body: lastMsg.text || 'Sent an attachment',
-                icon: lastMsg.senderAvatar || '/pwa-192x192.png'
+                icon: lastMsg.senderAvatar || '/pwa-192x192.png',
+                data: { chatId: change.doc.id }
               });
             }
           }

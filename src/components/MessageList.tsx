@@ -139,6 +139,37 @@ const MessageList: React.FC<MessageListProps> = ({
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const isNewDay = (msg: Message, prevMsg?: Message) => {
+    if (!prevMsg || !msg.timestamp) return true;
+    const date1 = (msg.timestamp as any)?.toDate ? (msg.timestamp as any).toDate() : new Date(msg.timestamp as any);
+    const date2 = (prevMsg.timestamp as any)?.toDate ? (prevMsg.timestamp as any).toDate() : new Date(prevMsg.timestamp as any);
+    return date1.toDateString() !== date2.toDateString();
+  };
+
+  const formatDateLabel = (timestamp: any) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Same day
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    
+    // Yesterday
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    
+    // Within the last 7 days (show day name)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    if (date > sevenDaysAgo && date < today) {
+      return date.toLocaleDateString([], { weekday: 'long' });
+    }
+    
+    // Over a week ago (show month and day)
+    return date.toLocaleDateString([], { day: 'numeric', month: 'long' });
+  };
+
   return (
     <>
       <div 
@@ -151,62 +182,75 @@ const MessageList: React.FC<MessageListProps> = ({
           backgroundRepeat: 'no-repeat'
         }}
       >
-        {messages.map((msg) => (
-            <div 
-              key={msg.id}
-              className={`message-wrapper ${msg.sender} ${selectedMessages.has(msg.id) ? 'selected' : ''}`}
-              onClick={() => isSelectionMode && toggleSelectMessage(msg.id)}
-            >
-              {isSelectionMode && (
-                <div className="selection-checkbox">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedMessages.has(msg.id)} 
-                    onChange={() => toggleSelectMessage(msg.id)} 
-                  />
+        {messages.map((msg, index) => {
+          const prevMsg = index > 0 ? messages[index - 1] : undefined;
+          const showDateStamp = isNewDay(msg, prevMsg);
+
+          return (
+            <React.Fragment key={msg.id}>
+              {showDateStamp && (
+                <div className="date-stamp-container">
+                  <div className="date-stamp">
+                    {formatDateLabel(msg.timestamp)}
+                  </div>
                 </div>
               )}
               <div 
-                className={`message ${msg.sender} ${msg.senderId === 'system' ? 'system' : ''}`}
-                onContextMenu={(e) => handleContextMenu(e, msg)}
-                onTouchStart={() => handleTouchStart(msg)}
-                onTouchEnd={handleTouchEnd}
+                className={`message-wrapper ${msg.sender} ${selectedMessages.has(msg.id) ? 'selected' : ''}`}
+                onClick={() => isSelectionMode && toggleSelectMessage(msg.id)}
               >
-                <div className="message-content">
-                  {msg.senderId !== 'system' && msg.sender === 'them' && msg.senderName && (
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>
-                      {msg.senderName}
-                    </div>
-                  )}
-                  {msg.replyTo && (
-                    <div className="reply-preview">
-                      <span className="reply-sender">{msg.replyTo.senderName}</span>
-                      <p className="reply-text">{msg.replyTo.text}</p>
-                    </div>
-                  )}
-                  {renderMessageContent(msg)}
-                  {renderMessageText(msg)}
-                <div className="message-time">
-                  {msg.isEdited && <span className="edited-tag">edited</span>}
-                  {formatTime(msg.timestamp)}
-                  {msg.sender === 'me' && (
-                    <>
-                      <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
-                        {msg.read ? (
-                          <CheckCheck size={14} color="var(--accent)" />
-                        ) : msg.delivered ? (
-                          <CheckCheck size={14} color="var(--text-secondary)" />
-                        ) : (
-                          <Check size={14} color="var(--text-secondary)" />
-                        )}
+                {isSelectionMode && (
+                  <div className="selection-checkbox">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedMessages.has(msg.id)} 
+                      onChange={() => toggleSelectMessage(msg.id)} 
+                    />
+                  </div>
+                )}
+                <div 
+                  className={`message ${msg.sender} ${msg.senderId === 'system' ? 'system' : ''}`}
+                  onContextMenu={(e) => handleContextMenu(e, msg)}
+                  onTouchStart={() => handleTouchStart(msg)}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  <div className="message-content">
+                    {msg.senderId !== 'system' && msg.sender === 'them' && msg.senderName && (
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '4px' }}>
+                        {msg.senderName}
                       </div>
-                    </>
-                  )}
+                    )}
+                    {msg.replyTo && (
+                      <div className="reply-preview">
+                        <span className="reply-sender">{msg.replyTo.senderName}</span>
+                        <p className="reply-text">{msg.replyTo.text}</p>
+                      </div>
+                    )}
+                    {renderMessageContent(msg)}
+                    {renderMessageText(msg)}
+                    <div className="message-time">
+                      {msg.isEdited && <span className="edited-tag">edited</span>}
+                      {formatTime(msg.timestamp)}
+                      {msg.sender === 'me' && (
+                        <>
+                          <div style={{ marginLeft: '4px', display: 'inline-flex', verticalAlign: 'middle' }}>
+                            {msg.read ? (
+                              <CheckCheck size={14} color="var(--accent)" />
+                            ) : msg.delivered ? (
+                              <CheckCheck size={14} color="var(--text-secondary)" />
+                            ) : (
+                              <Check size={14} color="var(--text-secondary)" />
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
+            </React.Fragment>
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 
