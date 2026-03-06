@@ -3,6 +3,8 @@ import { Send, Smile, Plus, Mic, Image, Video, X, Square, FileText, Camera as Ca
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
+import EmojiPicker from './EmojiPicker';
+
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
   onSendMedia: (file: File, type: 'image' | 'video' | 'audio' | 'file', caption?: string) => void;
@@ -24,6 +26,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const [text, setText] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
@@ -60,24 +63,30 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (attachmentsRef.current && !attachmentsRef.current.contains(event.target as Node)) {
         setShowAttachments(false);
+        setShowEmojiPicker(false);
       }
     };
 
-    if (showAttachments) {
+    if (showAttachments || showEmojiPicker) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
 
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showAttachments]);
+  }, [showAttachments, showEmojiPicker]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (text.trim()) {
       onSendMessage(text);
       setText('');
+      setShowEmojiPicker(false);
     }
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setText(prev => prev + emoji);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
@@ -225,7 +234,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
         </div>
       ) : (
         <form className="chat-input-container" onSubmit={handleSubmit}>
-          <button type="button" className="action-btn" style={{ padding: '0 8px 0 0' }} disabled={isUploading}><Smile size={24} /></button>
+          {showEmojiPicker && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
+          <button 
+            type="button" 
+            className={`action-btn ${showEmojiPicker ? 'active' : ''}`} 
+            style={{ padding: '0 8px 0 0' }} 
+            disabled={isUploading}
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          >
+            <Smile size={24} />
+          </button>
           <input
             type="text"
             className="chat-input"
@@ -233,6 +251,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={isUploading}
+            onFocus={() => setShowEmojiPicker(false)}
           />
         </form>
       )}
