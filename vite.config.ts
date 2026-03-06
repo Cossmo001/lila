@@ -35,7 +35,8 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 4000000, // 4MB
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,js}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globIgnores: ['**/firebase-messaging-sw.js', '**/OneSignalSDKWorker.js'],
         additionalManifestEntries: [
           { url: 'firebase-messaging-sw.js', revision: null },
           { url: 'OneSignalSDKWorker.js', revision: null }

@@ -10,6 +10,33 @@ interface SidebarProps {
   activeChatId: string | null;
 }
 
+// Simple client-side cache for user profiles to save on Firestore reads
+const userProfileCache: Record<string, any> = {};
+const pendingUserRequests: Record<string, Promise<any> | undefined> = {};
+
+const getCachedUser = async (uid: string) => {
+  if (userProfileCache[uid]) return userProfileCache[uid];
+  const pending = pendingUserRequests[uid];
+  if (pending) return pending;
+
+  pendingUserRequests[uid] = (async () => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      const userDoc = await getDoc(userRef);
+      const data = userDoc.exists() ? userDoc.data() : { username: 'Unknown User', uid };
+      userProfileCache[uid] = data;
+      return data;
+    } catch (err) {
+      console.error("Error fetching user for cache:", err);
+      return { username: 'Unknown User', uid };
+    } finally {
+      delete pendingUserRequests[uid];
+    }
+  })();
+
+  return pendingUserRequests[uid];
+};
+
 const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const { user, userData } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,10 +67,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
           
           if (!recipientUid) return null;
 
-          // Faster direct document lookup
-          const userRef = doc(db, 'users', recipientUid);
-          const userDoc = await getDoc(userRef);
-          const recipientData = userDoc.exists() ? userDoc.data() : { username: 'Unknown User', uid: recipientUid };
+          // Use optimized cache helper
+          const recipientData = await getCachedUser(recipientUid);
 
           return {
             id: chatDoc.id,
@@ -57,8 +82,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       }
     }, (error) => {
       console.error("Chats listener error:", error);
-      if (error.code === 'failed-precondition') {
-        console.warn("Firestore index missing for sorting. Falling back to client-side sort.");
+      if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+        console.warn("Firestore index missing or other precondition failed. Falling back to client-side sort.");
         const qNoSort = query(
           collection(db, 'chats'),
           where('participants', 'array-contains', user.uid)
@@ -69,15 +94,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
               if (data.isGroup) return { id: chatDoc.id, ...data };
               const recipientUid = data.participants.find((p: string) => p !== user?.uid);
               if (!recipientUid) return null;
-              const userRef = doc(db, 'users', recipientUid);
-              const userDoc = await getDoc(userRef);
-              const recipientData = userDoc.exists() ? userDoc.data() : { username: 'Unknown User', uid: recipientUid };
+              
+              const recipientData = await getCachedUser(recipientUid);
               return { id: chatDoc.id, ...data, recipient: { uid: recipientUid, ...recipientData } };
            }));
            const sorted = list.filter(Boolean).sort((a: any, b: any) => {
-             const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt || 0);
-             const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt || 0);
-             return tB - tA;
+              const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt || 0);
+              const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt || 0);
+              return tB - tA;
            });
            setChats(sorted);
         });
