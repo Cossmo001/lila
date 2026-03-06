@@ -24,18 +24,23 @@ const MessageList: React.FC<MessageListProps> = ({
   onEditMessage,
   onMediaClick
 }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const longPressTimer = useRef<any>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'smooth') => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: behavior
+      });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom('smooth');
   }, [messages]);
 
   const handleContextMenu = (e: React.MouseEvent, message: Message) => {
@@ -174,6 +179,7 @@ const MessageList: React.FC<MessageListProps> = ({
     <>
       <div 
         className="message-list" 
+        ref={scrollRef}
         style={{ 
           background: wallpaper?.type === 'color' ? wallpaper.value : undefined,
           backgroundImage: wallpaper?.type === 'image' ? `url(${wallpaper.value})` : undefined,
@@ -251,7 +257,6 @@ const MessageList: React.FC<MessageListProps> = ({
             </React.Fragment>
           );
         })}
-        <div ref={messagesEndRef} />
       </div>
 
 
