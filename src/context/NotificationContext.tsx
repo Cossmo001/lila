@@ -194,23 +194,31 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     try {
       // @ts-ignore
-      const OneSignal = window.OneSignal || (window.OneSignalDeferred && window.OneSignalDeferred[0]);
-      if (!OneSignal) return;
+      const OneSignal = window.OneSignal;
+      // @ts-ignore
+      const OneSignalDeferred = window.OneSignalDeferred;
 
-      // Wait for OneSignal to be ready and get permission
-      OneSignal.push(async function() {
-        const isOptedIn = await OneSignal.Notifications.permission;
-        if (!isOptedIn) return;
-
+      if (OneSignal) {
+        await OneSignal.login(user.uid);
         const subscriptionId = await OneSignal.User.PushSubscription.id;
         if (subscriptionId) {
           await updateDoc(doc(db, 'users', user.uid), {
             oneSignalId: subscriptionId,
             lastOneSignalSync: new Date()
           });
-          console.log("OneSignal ID synced:", subscriptionId);
         }
-      });
+      } else if (OneSignalDeferred) {
+        OneSignalDeferred.push(async (OS: any) => {
+          await OS.login(user.uid);
+          const subscriptionId = await OS.User.PushSubscription.id;
+          if (subscriptionId) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              oneSignalId: subscriptionId,
+              lastOneSignalSync: new Date()
+            });
+          }
+        });
+      }
     } catch (err) {
       console.error("OneSignal sync failed:", err);
     }
@@ -262,6 +270,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (OneSignal) {
         OneSignal.push(async function() {
           await OneSignal.Notifications.requestPermission();
+          await OneSignal.login(user?.uid || ''); // Ensure identified on manual refresh
           await syncOneSignalId();
         });
       }
@@ -273,7 +282,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err) {
       console.error("Manual refresh failed:", err);
     }
-  }, [syncFCMToken, syncOneSignalId]);
+  }, [syncFCMToken, syncOneSignalId, user?.uid]);
 
   // Listen for native push notifications and token registration
   useEffect(() => {

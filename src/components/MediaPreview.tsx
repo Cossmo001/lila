@@ -140,8 +140,11 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     const files = e.target.files;
     if (files && files.length > 0) {
       const newMedia: MediaItem[] = Array.from(files).map((file) => {
-        const isVideo = file.type.startsWith('video/');
-        return { file, type: isVideo ? 'video' : 'image' };
+        let type: 'image' | 'video' | 'audio' | 'file' = 'file';
+        if (file.type.startsWith('image/')) type = 'image';
+        else if (file.type.startsWith('video/')) type = 'video';
+        else if (file.type.startsWith('audio/')) type = 'audio';
+        return { file, type };
       });
       onAddMedia(newMedia);
       if (e.target) e.target.value = '';

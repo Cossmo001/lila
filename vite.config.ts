@@ -37,7 +37,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4000000, // 4MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,js}'],
         additionalManifestEntries: [
-          { url: 'firebase-messaging-sw.js', revision: null }
+          { url: 'firebase-messaging-sw.js', revision: null },
+          { url: 'OneSignalSDKWorker.js', revision: null }
         ]
       }
     })

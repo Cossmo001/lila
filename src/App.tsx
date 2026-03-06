@@ -600,6 +600,7 @@ function App() {
             if (user) {
               localStorage.setItem(`permissions_handled_${user.uid}`, 'true');
               syncFCMToken();
+              syncOneSignalId(); // Immediately sync OneSignal after permissions are handled
             }
           }} 
         />

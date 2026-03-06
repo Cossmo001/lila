@@ -89,10 +89,26 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setText(prev => prev + emoji);
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, preferredType: 'image' | 'video' | 'file') => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const mediaArray = Array.from(files).map(file => ({ file, type }));
+      const mediaArray = Array.from(files).map(file => {
+        let type: 'image' | 'video' | 'audio' | 'file' = preferredType;
+        
+        if (file.type.startsWith('image/')) {
+          type = 'image';
+        } else if (file.type.startsWith('video/')) {
+          type = 'video';
+        } else if (file.type.startsWith('audio/')) {
+          type = 'audio';
+        } else if (preferredType !== 'file') {
+          // If a non-media file was picked in a media picker, 
+          // we fallback to 'file' unless it's specifically a known media type
+          type = 'file';
+        }
+        
+        return { file, type };
+      });
       onMediaSelected?.(mediaArray);
       setShowAttachments(false);
       if (e.target) e.target.value = ''; // Clear the input so the same file can be selected again

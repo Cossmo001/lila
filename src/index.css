@@ -78,8 +78,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  -webkit-font-smoothing: antialiased;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: 0;
 }
 
 #root {
@@ -115,7 +114,7 @@ body {
 }
 
 .chat-header {
-  padding: 10px 16px;
+  padding: 12px 16px;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border-strong);
   display: flex;
@@ -125,7 +124,6 @@ body {
   min-height: 60px;
   flex-shrink: 0;
   z-index: 10;
-  padding-top: calc(10px + env(safe-area-inset-top, 0px));
 }
 
 .header-left {
@@ -230,8 +228,7 @@ body {
 }
 
 .chat-input-area {
-  padding: 10px 16px;
-  padding-bottom: 12px;
+  padding: 12px 16px;
   background: var(--bg-sidebar);
   display: flex;
   align-items: center;
@@ -248,6 +245,7 @@ body {
   padding: 9px 16px;
   display: flex;
   align-items: center;
+  position: relative;
   transition: background 0.2s;
 }
 
@@ -3495,8 +3493,8 @@ input:checked + .slider:before {
 /* Emoji Picker Styles */
 .emoji-picker-premium {
   position: absolute;
-  bottom: 100%;
-  left: 16px;
+  bottom: calc(100% + 12px);
+  left: 0;
   width: 320px;
   height: 400px;
   background: var(--bg-sidebar);
