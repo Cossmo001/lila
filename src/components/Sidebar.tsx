@@ -29,8 +29,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
           .from('chat_participants')
           .select(`
             chat_id,
+            unread_count,
             chat:chats (
               *,
+              last_message:messages(content, sender_id, created_at, type, is_read),
               participants:chat_participants (
                 user:profiles (*)
               )
@@ -50,10 +52,15 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
             const chat = item.chat;
             if (!chat) return null;
 
-            const lastMsgRaw = (chat as any).last_message;
+            let previewText = lastMsgRaw.content || '';
+            if (lastMsgRaw.type === 'image') previewText = `📷 Photo${previewText ? ': ' + previewText : ''}`;
+            else if (lastMsgRaw.type === 'video') previewText = `🎥 Video${previewText ? ': ' + previewText : ''}`;
+            else if (lastMsgRaw.type === 'audio') previewText = `🎵 Audio`;
+            else if (lastMsgRaw.type === 'file') previewText = `📄 Document`;
+
             const lastMsg = lastMsgRaw ? {
               ...lastMsgRaw,
-              text: lastMsgRaw.content,
+              text: previewText,
               sender_id: lastMsgRaw.sender_id,
               is_read: lastMsgRaw.is_read
             } : null;
@@ -63,6 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
             const baseChat = {
               id: chat.id,
               ...chat,
+              unread_count: item.unread_count || 0,
               last_message: lastMsg,
               recipient: recipientParticipant?.user
             };
@@ -102,9 +110,20 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchChats())
         .subscribe();
 
+      const participantChannel = supabase
+        .channel('sidebar-participants')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'chat_participants',
+          filter: `user_id=eq.${user.id}`
+        }, () => fetchChats())
+        .subscribe();
+
       return () => {
         supabase.removeChannel(chatChannel);
         supabase.removeChannel(msgChannel);
+        supabase.removeChannel(participantChannel);
       };
     };
 

@@ -4,7 +4,7 @@ if (typeof window !== 'undefined') {
   (window as any).React = React;
 }
 
-import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Download, Plus } from 'lucide-react';
+import { X, Send, FileText, Music, Crop, Edit2, Type, Square, Smile, Download, Plus, RotateCcw } from 'lucide-react';
 import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
 
 interface MediaItem {
@@ -52,14 +52,15 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
   const [captions, setCaptions] = useState<{ [index: number]: string }>({});
   const addMediaInputRef = React.useRef<HTMLInputElement>(null);
   
-  const [isEditing, setIsEditing] = useState(false);
-  const [editorConfig, setEditorConfig] = useState<any>(null);
+  const [activeTool, setActiveTool] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<any>(TABS.ANNOTATE);
   
-  const currentMedia = media[currentIndex];
-  const { file, type } = currentMedia;
+  // Guard against out of bounds if media list changes
+  const effectiveIndex = currentIndex >= media.length ? 0 : currentIndex;
+  const { file, type } = media[effectiveIndex] || { file: null, type: 'file' };
   
   const previewUrl = useMemo(() => {
-    if (type === 'image' || type === 'video') {
+    if (file && (type === 'image' || type === 'video')) {
       return URL.createObjectURL(file);
     }
     return null;
@@ -76,7 +77,9 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     };
   }, [onClose, previewUrl]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
+    // If we're editing an image, we should trigger a save before sending
+    // For simplicity in this version, we assume the user saves manually or we use the latest edited version
     const payloads = media.map((item, index) => ({
       ...item,
       caption: captions[index] || ''
@@ -89,16 +92,10 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     if (!previewUrl) return;
     const a = document.createElement('a');
     a.href = previewUrl;
-    a.download = file.name || 'download';
+    a.download = file?.name || 'download';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  };
-
-  const openEditor = (tabId: string, toolId: string) => {
-    if (type !== 'image') return;
-    setEditorConfig({ defaultTabId: tabId, defaultToolId: toolId });
-    setIsEditing(true);
   };
 
   const dataURItoFile = (dataURI: string, filename: string) => {
@@ -114,37 +111,26 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     return new File([u8arr], filename, { type: mime });
   };
 
-  const handleEditorSave = async (editedImageObject: any) => {
-    try {
-      const dataUri = editedImageObject?.imageBase64;
-      if (!dataUri) {
-        console.error("No imageBase64 returned from editor", editedImageObject);
-        alert("Failed to save: No image data returned.");
-        setIsEditing(false);
-        return;
-      }
-      
-      const editedFile = dataURItoFile(dataUri, file.name || 'edited_image.png');
-      if (onUpdateMedia) {
-        onUpdateMedia(currentIndex, { file: editedFile, type: 'image' });
-      }
-      setIsEditing(false);
-    } catch (e) {
-      console.error("Failed to save edited image:", e);
-      alert("Failed to save image. Please check the console.");
-      setIsEditing(false);
+  const handleEditorSave = (editedImageObject: any) => {
+    const dataUri = editedImageObject?.imageBase64;
+    if (!dataUri) return;
+    
+    const editedFile = dataURItoFile(dataUri, file?.name || 'edited_image.png');
+    if (onUpdateMedia) {
+      onUpdateMedia(effectiveIndex, { file: editedFile, type: 'image' });
     }
+    setActiveTool(null);
   };
 
   const handleAddMoreMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const newMedia: MediaItem[] = Array.from(files).map((file) => {
-        let type: 'image' | 'video' | 'audio' | 'file' = 'file';
-        if (file.type.startsWith('image/')) type = 'image';
-        else if (file.type.startsWith('video/')) type = 'video';
-        else if (file.type.startsWith('audio/')) type = 'audio';
-        return { file, type };
+      const newMedia: MediaItem[] = Array.from(files).map((f) => {
+        let t: 'image' | 'video' | 'audio' | 'file' = 'file';
+        if (f.type.startsWith('image/')) t = 'image';
+        else if (f.type.startsWith('video/')) t = 'video';
+        else if (f.type.startsWith('audio/')) t = 'audio';
+        return { file: f, type: t };
       });
       onAddMedia(newMedia);
       if (e.target) e.target.value = '';
@@ -160,11 +146,31 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
   };
 
   const renderPreview = () => {
+    if (!file) return null;
+
     switch (type) {
       case 'image':
         return (
-          <div className="media-preview-image-wrapper">
-            <img src={previewUrl!} alt="Preview" className="media-preview-content" />
+          <div className="media-preview-image-wrapper integrated-editor">
+            <EditorErrorBoundary>
+              <FilerobotImageEditor
+                source={previewUrl!}
+                onSave={handleEditorSave}
+                onClose={() => setActiveTool(null)}
+                savingPixelRatio={1}
+                previewPixelRatio={1}
+                disableSaveIfNoChanges={false}
+                observePluginContainerSize={true}
+                annotationsCommon={{ fill: '#ff0000' }}
+                Text={{ text: 'Add Text...' }}
+                defaultTabId={activeTab}
+                defaultToolId={activeTool || undefined}
+                tabsIds={[TABS.ADJUST, TABS.ANNOTATE, TABS.FILTERS, TABS.FINETUNE]}
+                // Customizing the view to be "integrated"
+                showBackButton={false}
+                closeAfterSave={true}
+              />
+            </EditorErrorBoundary>
           </div>
         );
       case 'video':
@@ -196,48 +202,8 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
     }
   };
 
-  if (isEditing && type === 'image' && previewUrl) {
-    return (
-      <div 
-        style={{ 
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 999, 
-          backgroundColor: '#000',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        <EditorErrorBoundary>
-          <FilerobotImageEditor
-            source={previewUrl}
-            onSave={(editedImageObject) => {
-              console.log("Save clicked! Image Object: ", !!editedImageObject.imageBase64);
-              handleEditorSave(editedImageObject);
-            }}
-            onClose={() => setIsEditing(false)}
-            savingPixelRatio={1}
-            previewPixelRatio={1}
-            disableSaveIfNoChanges={false}
-            observePluginContainerSize={true}
-            annotationsCommon={{ fill: '#ff0000' }}
-            Text={{ text: 'Add Text...' }}
-            defaultTabId={editorConfig?.defaultTabId || TABS.ANNOTATE}
-            defaultToolId={editorConfig?.defaultToolId || TOOLS.TEXT}
-            useBackendTranslations={false}
-          />
-        </EditorErrorBoundary>
-      </div>
-    );
-  }
-
   return (
-    <div className="media-preview-overlay">
+    <div className="media-preview-overlay whatsapp-integrated">
       <div className="media-preview-container">
         <header className="media-preview-header-whatsapp">
           <div className="header-left">
@@ -248,12 +214,70 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
           
           {type === 'image' && (
             <div className="header-actions-whatsapp">
-              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ADJUST, TOOLS.CROP)} title="Crop/Rotate"><Crop size={22} /></button>
-              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.PEN)} title="Draw"><Edit2 size={20} /></button>
-              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.TEXT)} title="Text"><Type size={22} /></button>
-              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.RECT)} title="Shapes"><Square size={20} /></button>
-              <button className="toolbar-icon-btn" onClick={() => openEditor(TABS.ANNOTATE, TOOLS.IMAGE)} title="Stickers"><Smile size={22} /></button>
-              <button className="toolbar-icon-btn" onClick={handleDownload} title="Download"><Download size={22} /></button>
+              {activeTool && (
+                <>
+                  <button 
+                    className="toolbar-icon-btn undo-btn" 
+                    onClick={() => {
+                      // Trigger Filerobot undo via DOM click as a fallback
+                      const undoBtn = document.querySelector('.filerobot-image-editor-root [title*="Undo"]') as HTMLElement;
+                      undoBtn?.click();
+                    }} 
+                    title="Undo"
+                  >
+                    <RotateCcw size={20} />
+                  </button>
+                  <button 
+                    className="done-text-btn" 
+                    onClick={() => {
+                      // Trigger Filerobot save via DOM click
+                      const saveBtn = document.querySelector('.filerobot-image-editor-root [class*="Save"], .filerobot-image-editor-root button:last-child') as HTMLElement;
+                      saveBtn?.click();
+                    }}
+                  >
+                    Done
+                  </button>
+                  <div className="divider-v"></div>
+                </>
+              )}
+              <button 
+                className={`toolbar-icon-btn ${activeTool === TOOLS.CROP ? 'active' : ''}`} 
+                onClick={() => { setActiveTab(TABS.ADJUST); setActiveTool(TOOLS.CROP); }} 
+                title="Crop/Rotate"
+              >
+                <Crop size={22} />
+              </button>
+              <button 
+                className={`toolbar-icon-btn ${activeTool === TOOLS.PEN ? 'active' : ''}`} 
+                onClick={() => { setActiveTab(TABS.ANNOTATE); setActiveTool(TOOLS.PEN); }} 
+                title="Draw"
+              >
+                <Edit2 size={20} />
+              </button>
+              <button 
+                className={`toolbar-icon-btn ${activeTool === TOOLS.TEXT ? 'active' : ''}`} 
+                onClick={() => { setActiveTab(TABS.ANNOTATE); setActiveTool(TOOLS.TEXT); }} 
+                title="Text"
+              >
+                <Type size={22} />
+              </button>
+              <button 
+                className={`toolbar-icon-btn ${activeTool === TOOLS.RECT ? 'active' : ''}`} 
+                onClick={() => { setActiveTab(TABS.ANNOTATE); setActiveTool(TOOLS.RECT); }} 
+                title="Shapes"
+              >
+                <Square size={20} />
+              </button>
+              <button 
+                className={`toolbar-icon-btn ${activeTool === TOOLS.IMAGE ? 'active' : ''}`} 
+                onClick={() => { setActiveTab(TABS.ANNOTATE); setActiveTool(TOOLS.IMAGE); }} 
+                title="Stickers"
+              >
+                <Smile size={22} />
+              </button>
+              <button className="toolbar-icon-btn" onClick={handleDownload} title="Download">
+                <Download size={22} />
+              </button>
             </div>
           )}
         </header>
@@ -270,8 +294,8 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
                 <input 
                   type="text" 
                   placeholder="Add a caption" 
-                  value={captions[currentIndex] || ''} 
-                  onChange={(e) => setCaptions(prev => ({ ...prev, [currentIndex]: e.target.value }))}
+                  value={captions[effectiveIndex] || ''} 
+                  onChange={(e) => setCaptions(prev => ({ ...prev, [effectiveIndex]: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   autoFocus
                 />
@@ -281,12 +305,16 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
             <div className="thumbnail-strip">
               {media.map((item, index) => {
                 if (item.type !== 'image' && item.type !== 'video') return null;
+                // Note: In a real app, we'd cache these URLs to avoid memory leaks
                 const thumbUrl = URL.createObjectURL(item.file);
                 return (
                   <div 
                     key={index} 
-                    className={`thumbnail-item ${index === currentIndex ? 'active' : ''}`}
-                    onClick={() => setCurrentIndex(index)}
+                    className={`thumbnail-item ${index === effectiveIndex ? 'active' : ''}`}
+                    onClick={() => {
+                      setCurrentIndex(index);
+                      setActiveTool(null); // Reset tool when switching
+                    }}
                   >
                     {item.type === 'image' ? (
                       <img src={thumbUrl} alt="thumb" />
