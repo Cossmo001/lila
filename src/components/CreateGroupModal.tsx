@@ -144,7 +144,7 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
       const systemMessage = {
         chat_id: newChat.id,
         sender_id: user.id, // Or a dedicated system user ID if you have one
-        text: `${userData?.username || 'Someone'} created the group "${groupName}"`,
+        content: `${userData?.username || 'Someone'} created the group "${groupName}"`,
         type: 'text'
       };
 

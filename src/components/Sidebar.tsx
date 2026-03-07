@@ -256,10 +256,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
               </div>
             ) : searchResults.length > 0 ? (
               searchResults.map(result => (
-                <div key={result.uid} className="chat-item" onClick={() => startChat(result)}>
+                <div key={result.id} className="chat-item" onClick={() => startChat(result)}>
                   <div className="avatar" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
-                    {result.avatarUrl ? (
-                      <img src={result.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    {result.avatar_url ? (
+                      <img src={result.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
                       result.username[0].toUpperCase()
                     )}
@@ -294,16 +294,16 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
             onClick={() => onSelectChat(chat)}
           >
             <div className="avatar-container">
-              <div className="avatar" style={{ background: chat.isGroup ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
-                {chat.isGroup ? (
-                  chat.groupMetadata?.photoURL ? <img src={chat.groupMetadata.photoURL} alt="" /> : <Users size={20} />
+              <div className="avatar" style={{ background: chat.is_group ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
+                {chat.is_group ? (
+                  chat.icon_url ? <img src={chat.icon_url} alt="" /> : <Users size={20} />
                 ) : chat.recipient?.avatar_url ? (
                   <img src={chat.recipient.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
                   chat.recipient?.username?.[0]?.toUpperCase() || '?'
                 )}
               </div>
-              {!chat.is_group && chat.recipient?.is_online && <div className="online-indicator" />}
+              {!chat.is_group && chat.recipient?.status === 'online' && <div className="online-indicator" />}
             </div>
             <div className="chat-info">
               <div className="chat-top">

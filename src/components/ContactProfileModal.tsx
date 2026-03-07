@@ -12,7 +12,7 @@ interface ContactProfileModalProps {
 const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chatId, onClose }) => {
   const { userData, setContactAlias, updateProfile, blockUser, unblockUser } = useAuth();
   const contactId = contact.id || contact.uid;
-  const isBlocked = userData?.blockedUsers?.[contactId] || false;
+  const isBlocked = userData?.blocked_users?.[contactId] || false;
   const currentAlias = userData?.contacts?.[contactId]?.alias || '';
   const [alias, setAlias] = useState(currentAlias);
   const [isEditingAlias, setIsEditingAlias] = useState(false);
@@ -191,8 +191,8 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
         {/* Hero Section */}
         <section className="wa-section wa-hero">
           <div className="wa-avatar-container">
-            {contact.avatarUrl ? (
-              <img src={contact.avatarUrl} alt={contact.username} />
+            {contact.avatar_url ? (
+              <img src={contact.avatar_url} alt={contact.username} />
             ) : (
               <div className="avatar-fallback" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent-blue)', color: 'white', fontSize: '5rem', fontWeight: 600, width: '100%', height: '100%' }}>
                 {contact.username?.[0]?.toUpperCase()}

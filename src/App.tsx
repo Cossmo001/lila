@@ -486,14 +486,14 @@ function App() {
                     <ChevronLeft size={24} />
                   </div>
                   <div className="header-left" onClick={() => setShowProfileModal(!showProfileModal)} style={{ cursor: 'pointer' }}>
-                    <div className="avatar" style={{ background: activeChat.isGroup ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
-                      {activeChat.isGroup ? (
+                    <div className="avatar" style={{ background: activeChat.is_group ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
+                      {activeChat.is_group ? (
                         activeChat.icon_url ? (
                           <img src={activeChat.icon_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         ) : <Users size={20} />
                       ) : (
-                        recipientData?.avatarUrl ? (
-                          <img src={recipientData.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        recipientData?.avatar_url ? (
+                          <img src={recipientData.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         ) : (
                           recipientData?.username?.[0]?.toUpperCase() || '?'
                         )
@@ -501,15 +501,15 @@ function App() {
                     </div>
                     <div className="header-info">
                       <h1 style={{ fontSize: '1rem', fontWeight: 600 }}>
-                        {activeChat.isGroup ? activeChat.groupMetadata?.name : (userData?.contacts?.[recipientData?.id]?.alias || recipientData?.username || 'Unknown')}
+                        {activeChat.is_group ? activeChat.name : (userData?.contacts?.[recipientData?.id]?.alias || recipientData?.username || 'Unknown')}
                       </h1>
-                      <p style={{ fontSize: '0.75rem', color: (activeChat.isGroup || recipientData?.status === 'online') ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                        {activeChat.isGroup ? `${activeChat.participants.length} members` : (recipientData?.status === 'online' ? 'online' : formatLastSeen(recipientData?.last_seen))}
+                      <p style={{ fontSize: '0.75rem', color: (activeChat.is_group || recipientData?.status === 'online') ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                        {activeChat.is_group ? `${activeChat.participants?.length || 0} members` : (recipientData?.status === 'online' ? 'online' : formatLastSeen(recipientData?.last_seen))}
                       </p>
                     </div>
                   </div>
                   <div className="header-actions">
-                    {!activeChat.isGroup && (
+                    {!activeChat.is_group && (
                       <>
                         <button className="action-btn" onClick={() => initiateCall('video')}><Video size={20} /></button>
                         <button className="action-btn" onClick={() => initiateCall('audio')}><Phone size={20} /></button>

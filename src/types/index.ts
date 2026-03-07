@@ -21,26 +21,21 @@ export interface Message {
 }
 
 export interface User {
-  uid: string;
+  id: string;
   username: string;
-  photoURL?: string;
-  isOnline: boolean;
-  lastSeen: Date;
+  avatar_url?: string;
+  status: 'online' | 'offline';
+  last_seen: Date;
 }
 export interface Chat {
   id: string;
   participants: string[];
-  lastMessage?: Message;
-  updatedAt: Date;
-  unreadCount?: number;
-  isFavorite?: boolean;
-  isGroup?: boolean;
-  groupMetadata?: {
-    name: string;
-    photoURL?: string;
-    description?: string;
-    createdBy: string;
-    admins: string[];
-  };
-  recipient: User;
+  last_message?: any; // Message type needs careful nesting
+  updated_at: Date;
+  unread_count?: number;
+  is_favorite?: boolean;
+  is_group?: boolean;
+  name?: string;
+  icon_url?: string;
+  recipient?: User;
 }
