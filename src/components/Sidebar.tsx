@@ -30,6 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
           chat_id,
           chat:chats (
             *,
+            last_message:messages!last_message_id(*),
             participants:chat_participants (
               user:profiles (*)
             )
@@ -44,13 +45,21 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
 
       const formattedChats = data.map((item: any) => {
         const chat = item.chat;
+        const lastMsg = chat.last_message ? {
+          ...chat.last_message,
+          text: chat.last_message.content, // Map content back to text for display
+          sender_id: chat.last_message.sender_id,
+          is_read: chat.last_message.is_read
+        } : null;
+
         if (chat.is_group) {
-          return { id: chat.id, ...chat };
+          return { id: chat.id, ...chat, last_message: lastMsg };
         }
         const recipientParticipant = chat.participants.find((p: any) => p.user.id !== user.id);
         return {
           id: chat.id,
           ...chat,
+          last_message: lastMsg,
           recipient: recipientParticipant?.user
         };
       });
@@ -62,19 +71,26 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
 
     fetchChats();
 
-    const channel = supabase
-      .channel('sidebar-changes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'chats' 
-      }, () => {
-        fetchChats();
-      })
-      .subscribe();
+    const setupSubscriptions = async () => {
+      const chatChannel = supabase
+        .channel('sidebar-chats')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => fetchChats())
+        .subscribe();
 
+      const msgChannel = supabase
+        .channel('sidebar-messages')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchChats())
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(chatChannel);
+        supabase.removeChannel(msgChannel);
+      };
+    };
+
+    const cleanup = setupSubscriptions();
     return () => {
-      supabase.removeChannel(channel);
+      cleanup.then(fn => fn && fn());
     };
   }, [user]);
 
@@ -318,10 +334,32 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
                   {chat.last_message?.text || 'No messages yet'}
                 </p>
                 {chat.unread_count > 0 && chat.last_message?.sender_id !== user?.id && (
-                  <div className="unread-badge">{chat.unread_count}</div>
+                  <div className="unread-badge" style={{ 
+                    background: 'var(--accent)', 
+                    color: '#0b141a', 
+                    borderRadius: '50%', 
+                    padding: '2px 6px', 
+                    fontSize: '0.7rem', 
+                    fontWeight: 700,
+                    minWidth: '20px',
+                    textAlign: 'center'
+                  }}>
+                    {chat.unread_count}
+                  </div>
                 )}
-                {chat.unread_count === 0 && chat.last_message?.sender_id !== user?.id && chat.last_message && !chat.last_message?.is_read && (
-                  <div className="unread-dot" />
+                {(!chat.unread_count || chat.unread_count === 0) && chat.last_message?.sender_id !== user?.id && chat.last_message && !chat.last_message?.is_read && (
+                  <div className="unread-badge" style={{ 
+                    background: 'var(--accent)', 
+                    color: '#0b141a', 
+                    borderRadius: '50%', 
+                    padding: '2px 6px', 
+                    fontSize: '0.7rem', 
+                    fontWeight: 700,
+                    minWidth: '20px',
+                    textAlign: 'center'
+                  }}>
+                    1
+                  </div>
                 )}
               </div>
             </div>
