@@ -8,7 +8,8 @@ import {
   CheckCircle,
   XCircle,
   Trash2,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -32,6 +33,9 @@ const AdminPortal: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [userDetails, setUserDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     const fetchData = async (isInitial = false) => {
@@ -119,6 +123,119 @@ const AdminPortal: React.FC = () => {
          console.error("Error deleting feedback:", err);
       }
     }
+  };
+
+  const fetchUserDetails = async (user: any) => {
+    setSelectedUser(user);
+    setLoadingDetails(true);
+    setUserDetails(null);
+    try {
+      // Fetch last message sent by this user
+      const { data: lastMsg, error: msgError } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          chat:chats (
+            *,
+            participants:chat_participants (
+              user:profiles (*)
+            )
+          )
+        `)
+        .eq('sender_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (msgError && msgError.code !== 'PGRST116') throw msgError;
+
+      if (lastMsg) {
+        let recipientName = "Unknown";
+        if (lastMsg.chat.is_group) {
+          recipientName = lastMsg.chat.name || "Group Chat";
+        } else {
+          const otherParticipant = lastMsg.chat.participants.find((p: any) => p.user.id !== user.id);
+          recipientName = otherParticipant?.user.username || "Unknown";
+        }
+
+        setUserDetails({
+          lastMessage: lastMsg.content,
+          lastMessageTime: lastMsg.created_at,
+          lastRecipient: recipientName,
+          lastMessageType: lastMsg.type
+        });
+      } else {
+        setUserDetails({
+          lastMessage: "No messages sent yet",
+          lastRecipient: "N/A"
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching user details:", err);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const renderUserDetailModal = () => {
+    if (!selectedUser) return null;
+
+    return (
+      <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
+        <div className="modal-content premium-glass fade-in" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3>User Details</h3>
+            <button className="close-btn" onClick={() => setSelectedUser(null)}><X size={20} /></button>
+          </div>
+          
+          <div className="user-detail-body">
+            <div className="detail-header">
+              <div className="avatar-lg">
+                {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} alt="" /> : selectedUser.username?.[0]}
+              </div>
+              <div className="header-text">
+                <h2>{selectedUser.username}</h2>
+                <p className="email-text">{selectedUser.email}</p>
+                <span className={`status-badge-detail ${selectedUser.status === 'online' ? 'online' : 'offline'}`}>
+                  {selectedUser.status === 'online' ? 'Online Now' : 'Offline'}
+                </span>
+              </div>
+            </div>
+
+            <div className="detail-grid">
+              <div className="detail-card">
+                <span className="label">Joined</span>
+                <span className="value">{new Date(selectedUser.created_at).toLocaleDateString()}</span>
+              </div>
+              <div className="detail-card">
+                <span className="label">Last Person Texted</span>
+                <span className="value">
+                  {loadingDetails ? <div className="shimmer mini" /> : userDetails?.lastRecipient || 'N/A'}
+                </span>
+              </div>
+            </div>
+
+            <div className="last-message-section">
+              <span className="label">Last Message Sent</span>
+              <div className="message-bubble-admin">
+                {loadingDetails ? (
+                  <div className="shimmer text-line" />
+                ) : (
+                  <>
+                    <p>{userDetails?.lastMessage || 'No messages'}</p>
+                    {userDetails?.lastMessageTime && (
+                      <span className="msg-time">
+                        {new Date(userDetails.lastMessageTime).toLocaleString()}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const filteredUsers = users.filter(u => 
@@ -221,7 +338,7 @@ const AdminPortal: React.FC = () => {
                 </td>
                 <td>{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</td>
                 <td>
-                   <button className="icon-btn"><ChevronRight size={16} /></button>
+                   <button className="icon-btn" onClick={() => fetchUserDetails(user)}><ChevronRight size={16} /></button>
                 </td>
               </tr>
             ))}
@@ -330,6 +447,7 @@ const AdminPortal: React.FC = () => {
             {activeTab === 'dashboard' && renderDashboard()}
             {activeTab === 'users' && renderUsers()}
             {activeTab === 'feedback' && renderFeedback()}
+            {renderUserDetailModal()}
           </>
         )}
       </main>
@@ -649,6 +767,129 @@ const AdminPortal: React.FC = () => {
            overflow: hidden;
         }
         .avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Modal Styles */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+        .modal-content {
+          width: 100%;
+          max-width: 500px;
+          max-height: 90vh;
+          overflow-y: auto;
+          padding: 24px;
+        }
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+        .close-btn {
+          background: none;
+          border: none;
+          color: var(--text-secondary);
+          cursor: pointer;
+        }
+        .user-detail-body {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+        .detail-header {
+          display: flex;
+          gap: 20px;
+          align-items: center;
+        }
+        .avatar-lg {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: var(--accent);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 2rem;
+          color: white;
+          overflow: hidden;
+        }
+        .avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+        .header-text h2 { margin: 0; font-size: 1.5rem; }
+        .email-text { color: var(--text-secondary); margin: 4px 0 12px; }
+        .status-badge-detail {
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+        .status-badge-detail.online { background: rgba(46, 204, 113, 0.1); color: #2ecc71; }
+        .status-badge-detail.offline { background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
+        
+        .detail-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .detail-card {
+          padding: 16px;
+          background: rgba(255, 255, 255, 0.03);
+          border-radius: 12px;
+          border: 1px solid var(--glass-border);
+        }
+        .label {
+          display: block;
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+          margin-bottom: 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .value {
+          font-weight: 600;
+          font-size: 1rem;
+        }
+        .last-message-section {
+          background: rgba(255, 255, 255, 0.03);
+          padding: 20px;
+          border-radius: 16px;
+          border: 1px solid var(--glass-border);
+        }
+        .message-bubble-admin {
+          margin-top: 12px;
+          background: var(--glass-bg);
+          padding: 16px;
+          border-radius: 12px;
+          border-left: 4px solid var(--accent);
+        }
+        .msg-time {
+          display: block;
+          font-size: 0.7rem;
+          color: var(--text-secondary);
+          margin-top: 8px;
+        }
+        .shimmer {
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+          border-radius: 4px;
+        }
+        .shimmer.mini { width: 100px; height: 20px; }
+        .shimmer.text-line { width: 100%; height: 60px; }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
       `}</style>
     </div>
   );

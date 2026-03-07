@@ -62,13 +62,14 @@ const PasswordResetTab: React.FC<PasswordResetTabProps> = ({ initialEmail, onBac
       
       if (!session) throw new Error("Verification failed. Please try again.");
 
-      // 2. Update Password (Straight update since email confirm is disabled)
+      // 2. Update Password & Metadata (Sync username to auth.users raw_user_meta_data)
       const { error: pwdError } = await supabase.auth.updateUser({
-        password: newPassword
+        password: newPassword,
+        data: { username }
       });
       if (pwdError) throw pwdError;
 
-      // 3. Update Profile (Upsert to create if missing for migrated users)
+      // 3. Update Profile Table (Upsert to create if missing for migrated users)
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({ 
@@ -76,7 +77,15 @@ const PasswordResetTab: React.FC<PasswordResetTabProps> = ({ initialEmail, onBac
           username,
           updated_at: new Date().toISOString()
         });
-      if (profileError) throw profileError;
+      
+      if (profileError) {
+        console.error("Profile upsert error:", profileError);
+        // If it's a unique constraint violation on username
+        if (profileError.code === '23505') {
+          throw new Error('This username is already taken. Please try another one.');
+        }
+        throw profileError;
+      }
       
       // Success - Refresh to boot into app
       window.location.reload();

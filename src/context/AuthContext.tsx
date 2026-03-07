@@ -94,13 +94,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProfile = async (data: Partial<any>) => {
     if (!user) return;
-    await supabase
+    
+    // 1. Update Profile Table
+    const { error: profileError } = await supabase
       .from('profiles')
       .upsert({ 
         id: user.id,
         ...data, 
         updated_at: new Date().toISOString() 
       });
+    
+    if (profileError) throw profileError;
+
+    // 2. Sync to auth metadata to ensure consistency across triggers
+    if (data.username || data.avatar_url) {
+      await supabase.auth.updateUser({
+        data: {
+          ...(data.username ? { username: data.username } : {}),
+          ...(data.avatar_url ? { avatar_url: data.avatar_url } : {})
+        }
+      });
+    }
   };
 
   const setContactAlias = async (contactUid: string, alias: string) => {
