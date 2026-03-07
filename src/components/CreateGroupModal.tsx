@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Search, Check, Camera, ArrowRight, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { supabase } from '../lib/supabase';
 import { useRef } from 'react';
-
 
 interface CreateGroupPanelProps {
   onClose: () => void;
@@ -30,25 +27,31 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
     if (!user) return;
     const fetchRecent = async () => {
       try {
-        const q = query(collection(db, 'chats'), where('participants', 'array-contains', user.uid));
-        const snap = await getDocs(q);
-        const contactUids = new Set<string>();
-        snap.docs.forEach(doc => {
-          const data = doc.data();
-          if (!data.isGroup) {
-            const recipientUid = data.participants.find((p: string) => p !== user.uid);
-            if (recipientUid) contactUids.add(recipientUid);
+        const { data, error } = await supabase
+          .from('chat_participants')
+          .select(`
+            chat:chats (
+              is_group,
+              participants:chat_participants (
+                user:profiles (*)
+              )
+            )
+          `)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        const contactMap = new Map();
+        data.forEach((item: any) => {
+          if (!item.chat.is_group) {
+            const recipient = item.chat.participants.find((p: any) => p.user.id !== user.id);
+            if (recipient) {
+              contactMap.set(recipient.user.id, recipient.user);
+            }
           }
         });
 
-        const contactData = await Promise.all(
-          Array.from(contactUids).map(async (uid) => {
-            const userRef = doc(db, 'users', uid);
-            const userDoc = await getDoc(userRef);
-            return userDoc.exists() ? { uid, ...userDoc.data() } : null;
-          })
-        );
-        setRecentContacts(contactData.filter(Boolean));
+        setRecentContacts(Array.from(contactMap.values()));
       } catch (err) {
         console.error("Error fetching recent contacts:", err);
       }
@@ -59,39 +62,25 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
-    const searchLower = searchTerm.trim().toLowerCase();
-    
-    const usernameRef = doc(db, 'usernames', searchLower);
-    const usernameDoc = await getDoc(usernameRef);
-    
-    let results: any[] = [];
-    if (usernameDoc.exists()) {
-      const uid = usernameDoc.data().uid;
-      if (uid !== user?.uid) {
-        const userRef = doc(db, 'users', uid);
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists()) {
-          results.push({ uid, ...userDoc.data() });
-        }
-      }
-    }
 
-    const q = query(
-      collection(db, 'users'),
-      where('usernameLower', '>=', searchLower),
-      where('usernameLower', '<=', searchLower + '\uf8ff')
-    );
-    const snap = await getDocs(q);
-    const wideResults = snap.docs
-      .map(doc => ({ uid: doc.id, ...doc.data() }))
-      .filter(c => c.uid !== user?.uid && !results.some(r => r.uid === c.uid));
-    
-    setContacts([...results, ...wideResults]);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', `%${searchTerm.trim()}%`)
+        .neq('id', user?.id)
+        .limit(20);
+
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (err) {
+      console.error("Search error:", err);
+    }
   };
 
-  const toggleContact = (uid: string) => {
+  const toggleContact = (id: string) => {
     setSelectedContacts(prev => 
-      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
 
@@ -108,54 +97,68 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
     if (!groupName.trim() || selectedContacts.length === 0 || !user) return;
     setIsCreating(true);
     try {
-      let photoURL = '';
+      let icon_url = '';
       if (selectedFile) {
         const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `groups/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+        const filePath = `group_icons/${fileName}`;
         
         const { error: uploadError } = await supabase.storage
           .from('media')
-          .upload(fileName, selectedFile);
+          .upload(filePath, selectedFile, { upsert: true });
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
           .from('media')
-          .getPublicUrl(fileName);
+          .getPublicUrl(filePath);
         
-        photoURL = publicUrl;
+        icon_url = publicUrl;
       }
 
-      const groupId = `group_${Date.now()}`;
-      const groupData = {
-        id: groupId,
-        isGroup: true,
-        participants: [user.uid, ...selectedContacts],
-        groupMetadata: {
+      // 1. Create chat
+      const { data: newChat, error: chatError } = await supabase
+        .from('chats')
+        .insert({
+          is_group: true,
           name: groupName,
-          createdBy: user.uid,
-          admins: [user.uid],
-          description: '',
-          photoURL: photoURL
-        },
-        updatedAt: serverTimestamp(),
-        lastMessage: {
-          text: `${userData?.username || 'Someone'} created the group "${groupName}"`,
-          senderId: 'system',
-          timestamp: serverTimestamp()
-        }
+          icon_url,
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (chatError) throw chatError;
+
+      // 2. Add participants
+      const participants = [user.id, ...selectedContacts].map(uid => ({
+        chat_id: newChat.id,
+        user_id: uid
+      }));
+
+      await supabase
+        .from('chat_participants')
+        .insert(participants);
+
+      // 3. System message
+      const systemMessage = {
+        chat_id: newChat.id,
+        sender_id: user.id, // Or a dedicated system user ID if you have one
+        text: `${userData?.username || 'Someone'} created the group "${groupName}"`,
+        type: 'text'
       };
 
-      await setDoc(doc(db, 'chats', groupId), groupData);
-      
-      await setDoc(doc(db, 'chats', groupId, 'messages', 'init'), {
-        text: `${userData?.username || 'Someone'} created the group "${groupName}"`,
-        senderId: 'system',
-        timestamp: serverTimestamp(),
-        type: 'text'
-      });
+      await supabase
+        .from('messages')
+        .insert(systemMessage);
 
-      onGroupCreated(groupData);
+      // Format for UI expectations
+      const groupDataForUI = {
+        ...newChat,
+        participants: [user.id, ...selectedContacts]
+      };
+
+      onGroupCreated(groupDataForUI);
       onClose();
     } catch (err) {
       console.error("Error creating group:", err);
@@ -201,17 +204,19 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
             </div>
 
             <div className="selected-contacts-stripe" style={{ padding: '8px 16px', display: 'flex', gap: '8px', overflowX: 'auto', background: 'var(--bg-sidebar)', minHeight: selectedContacts.length > 0 ? '60px' : '0' }}>
-              {selectedContacts.map(uid => {
-                const contact = [...recentContacts, ...contacts].find(c => c.uid === uid);
+              {selectedContacts.map(id => {
+                const contact = [...recentContacts, ...contacts].find(c => c.id === id);
                 if (!contact) return null;
                 return (
-                  <div key={uid} className="selected-avatar-mini" style={{ position: 'relative', flexShrink: 0 }}>
-                    <div className="avatar" style={{ width: '40px', height: '40px', fontSize: '0.8rem' }}>
-                      {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
+                  <div key={id} className="selected-avatar-mini" style={{ position: 'relative', flexShrink: 0 }}>
+                    <div className="avatar" style={{ background: 'var(--bg-active)' }}>
+                      {contact.avatar_url ? (
+                        <img src={contact.avatar_url} alt="" />
+                      ) : contact.username[0]}
                     </div>
                     <button 
                       className="remove-selection" 
-                      onClick={() => toggleContact(uid)}
+                      onClick={() => toggleContact(id)}
                       style={{ position: 'absolute', bottom: -2, right: -2, background: 'var(--bg-deep)', borderRadius: '50%', border: '1px solid var(--glass-border)', padding: '2px', display: 'flex' }}
                     >
                       <X size={10} />
@@ -227,21 +232,21 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
                   <div className="section-title" style={{ padding: '16px 24px 8px', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600 }}>RECENT CONTACTS</div>
                   {recentContacts.map(contact => (
                     <div 
-                      key={contact.uid} 
-                      className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
-                      onClick={() => toggleContact(contact.uid)}
+                      key={contact.id} 
+                      className={`contact-item ${selectedContacts.includes(contact.id) ? 'selected' : ''}`}
+                      onClick={() => toggleContact(contact.id)}
                       style={{ padding: '12px 24px' }}
                     >
                       <div className="avatar">
-                        {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
+                        {contact.avatar_url ? <img src={contact.avatar_url} alt="" /> : contact.username[0].toUpperCase()}
                       </div>
                       <div className="contact-info-small" style={{ flex: 1, marginLeft: '16px' }}>
                         <div className="contact-name" style={{ fontWeight: 400 }}>{contact.username}</div>
-                        <div className="contact-status" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Hey there! I am using Kadi.</div>
+                        <div className="contact-status" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Hey there! I am using Lila.</div>
                       </div>
                       <div className="selection-indicator">
-                        <div className={`custom-checkbox ${selectedContacts.includes(contact.uid) ? 'checked' : ''}`} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedContacts.includes(contact.uid) ? 'var(--accent)' : 'transparent' }}>
-                          {selectedContacts.includes(contact.uid) && <Check size={14} color="#0b141a" />}
+                        <div className={`custom-checkbox ${selectedContacts.includes(contact.id) ? 'checked' : ''}`} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedContacts.includes(contact.id) ? 'var(--accent)' : 'transparent' }}>
+                          {selectedContacts.includes(contact.id) && <Check size={14} color="#0b141a" />}
                         </div>
                       </div>
                     </div>
@@ -255,20 +260,20 @@ const CreateGroupPanel: React.FC<CreateGroupPanelProps> = ({ onClose, onGroupCre
                   <div className="section-title" style={{ padding: '16px 24px 8px', color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600 }}>SEARCH RESULTS</div>
                   {contacts.map(contact => (
                     <div 
-                      key={contact.uid} 
-                      className={`contact-item ${selectedContacts.includes(contact.uid) ? 'selected' : ''}`}
-                      onClick={() => toggleContact(contact.uid)}
+                      key={contact.id} 
+                      className={`contact-item ${selectedContacts.includes(contact.id) ? 'selected' : ''}`}
+                      onClick={() => toggleContact(contact.id)}
                       style={{ padding: '12px 24px' }}
                     >
                       <div className="avatar">
-                        {contact.avatarUrl ? <img src={contact.avatarUrl} alt="" /> : contact.username[0].toUpperCase()}
+                        {contact.avatar_url ? <img src={contact.avatar_url} alt="" /> : contact.username[0].toUpperCase()}
                       </div>
                       <div className="contact-info-small" style={{ flex: 1, marginLeft: '16px' }}>
                         <div className="contact-name" style={{ fontWeight: 400 }}>{contact.username}</div>
                       </div>
                       <div className="selection-indicator">
-                        <div className={`custom-checkbox ${selectedContacts.includes(contact.uid) ? 'checked' : ''}`} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedContacts.includes(contact.uid) ? 'var(--accent)' : 'transparent' }}>
-                          {selectedContacts.includes(contact.uid) && <Check size={14} color="#0b141a" />}
+                        <div className={`custom-checkbox ${selectedContacts.includes(contact.id) ? 'checked' : ''}`} style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedContacts.includes(contact.id) ? 'var(--accent)' : 'transparent' }}>
+                          {selectedContacts.includes(contact.id) && <Check size={14} color="#0b141a" />}
                         </div>
                       </div>
                     </div>

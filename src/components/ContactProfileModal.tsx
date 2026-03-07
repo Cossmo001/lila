@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Edit2, MessageSquare, Phone, Video, Shield, ChevronRight, Volume2, History, Lock, AlertCircle, FileText, ExternalLink, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 
 interface ContactProfileModalProps {
   contact: any;
@@ -12,12 +11,13 @@ interface ContactProfileModalProps {
 
 const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chatId, onClose }) => {
   const { userData, setContactAlias, updateProfile, blockUser, unblockUser } = useAuth();
-  const isBlocked = userData?.blockedUsers?.[contact.uid] || false;
-  const currentAlias = userData?.contacts?.[contact.uid]?.alias || '';
+  const contactId = contact.id || contact.uid;
+  const isBlocked = userData?.blockedUsers?.[contactId] || false;
+  const currentAlias = userData?.contacts?.[contactId]?.alias || '';
   const [alias, setAlias] = useState(currentAlias);
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const isMuted = userData?.settings?.muted?.[contact.uid] || false;
+  const isMuted = userData?.settings?.muted?.[contactId] || false;
 
   const [media, setMedia] = useState<any[]>([]);
   const [docs, setDocs] = useState<any[]>([]);
@@ -28,40 +28,61 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
   useEffect(() => {
     if (!chatId) return;
 
-    const q = query(
-      collection(db, 'chats', chatId, 'messages'),
-      orderBy('timestamp', 'desc')
-    );
+    const fetchMedia = async () => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: false });
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (error) {
+        console.error("Error fetching media:", error);
+        return;
+      }
+
       const allMedia: any[] = [];
       const allDocs: any[] = [];
       const allLinks: any[] = [];
 
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.type === 'image' || data.type === 'video') {
-          allMedia.push({ id: doc.id, ...data });
-        } else if (data.type === 'file') {
-          allDocs.push({ id: doc.id, ...data });
-        } else if (data.type === 'link') {
-          allLinks.push({ id: doc.id, ...data });
+      data.forEach(msg => {
+        const item = { 
+          id: msg.id, 
+          type: msg.type, 
+          mediaUrl: msg.metadata?.mediaUrl, 
+          text: msg.content,
+          timestamp: new Date(msg.created_at)
+        };
+        
+        if (msg.type === 'image' || msg.type === 'video') {
+          allMedia.push(item);
+        } else if (msg.type === 'file') {
+          allDocs.push(item);
+        } else if (msg.type === 'link') {
+          allLinks.push(item);
         }
       });
 
       setMedia(allMedia);
       setDocs(allDocs);
       setLinks(allLinks);
-    });
+    };
 
-    return unsubscribe;
+    fetchMedia();
+
+    const channel = supabase.channel(`profile_media:${chatId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, () => fetchMedia())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [chatId]);
 
   const handleToggleMute = async () => {
     try {
       const newSettings = { ...userData?.settings };
       if (!newSettings.muted) newSettings.muted = {};
-      newSettings.muted[contact.uid] = !isMuted;
+      newSettings.muted[contactId] = !isMuted;
       await updateProfile({ settings: newSettings });
     } catch (err) {
       console.error("Mute toggle error:", err);
@@ -75,7 +96,7 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
     }
     setIsSaving(true);
     try {
-      await setContactAlias(contact.uid, alias);
+      await setContactAlias(contactId, alias);
       setIsEditingAlias(false);
     } catch (err) {
       console.error("Save alias error:", err);
@@ -125,7 +146,7 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
                   </div>
                   <div className="wa-item-content">
                     <span className="wa-item-title" style={{ fontSize: '0.9rem' }}>{item.text || 'Document'}</span>
-                    <span className="wa-item-desc" style={{ fontSize: '0.75rem' }}>{item.timestamp?.toDate().toLocaleDateString()}</span>
+                    <span className="wa-item-desc" style={{ fontSize: '0.75rem' }}>{item.timestamp?.toLocaleDateString()}</span>
                   </div>
                   <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
                     <ExternalLink size={16} />
@@ -147,7 +168,7 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
                     <span className="wa-item-title" style={{ fontSize: '0.9rem', color: 'var(--accent)', textDecoration: 'underline' }}>
                       {item.text}
                     </span>
-                    <span className="wa-item-desc" style={{ fontSize: '0.75rem' }}>{item.timestamp?.toDate().toLocaleDateString()}</span>
+                    <span className="wa-item-desc" style={{ fontSize: '0.75rem' }}>{item.timestamp?.toLocaleDateString()}</span>
                   </div>
                 </div>
               ))}
@@ -304,7 +325,7 @@ const ContactProfileModal: React.FC<ContactProfileModalProps> = ({ contact, chat
           <div 
             className="wa-danger-item" 
             style={{ padding: '16px 30px', cursor: 'pointer' }}
-            onClick={() => isBlocked ? unblockUser(contact.uid) : blockUser(contact.uid)}
+            onClick={() => isBlocked ? unblockUser(contactId) : blockUser(contactId)}
           >
             <Shield size={20} />
             <span style={{ fontWeight: 500 }}>{isBlocked ? `Unblock ${contact.username}` : `Block ${contact.username}`}</span>

@@ -65,8 +65,8 @@ const NavRail: React.FC<NavRailProps> = ({ activeView, onSetActiveView, unreadCo
       <div className="nav-bottom">
         <div className="nav-item profile-item" title="Profile">
           <div className="mini-avatar" style={{ width: '28px', height: '28px' }}>
-            {userData?.avatarUrl ? (
-              <img src={userData.avatarUrl} alt="Me" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            {userData?.avatar_url ? (
+              <img src={userData.avatar_url} alt="Me" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             ) : (
               userData?.username?.[0]?.toUpperCase() || 'U'
             )}

@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { MessageSquare, Phone, Info, X } from 'lucide-react';
-import { getToken, onMessage } from 'firebase/messaging';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
-import { messaging, db } from '../lib/firebase';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
 type NotificationType = 'message' | 'call' | 'info';
@@ -152,45 +150,29 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user } = useAuth();
 
   const syncFCMToken = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.id) return;
     
     try {
-      // Only attempt to sync if permissions are already granted (don't prompt on mount)
       const permission = await requestNativePermission(false);
       if (!permission) return;
 
-      let currentToken = '';
-
       if (Capacitor.isNativePlatform()) {
-        // For native, we register and wait for the listener (handled in useEffect)
-        // or we can use a promise-based approach if the plugin supports it
         await PushNotifications.register();
-        return; // Token will be synced via the listener below
-      } else if (messaging) {
-        currentToken = await getToken(messaging, {
-          vapidKey: 'BGNA0Dcd-RVPIozjD4PvSSzf7vZEMvOXgl88uCa5ykH-WlgKsYDfb2UC6_JIhN7_S-xmLrsksyURN1rCHRexo_c'
-        });
+        return; 
       }
+      
+      // Web FCM is disabled as Firebase has been removed. 
+      // Relying on OneSignal for Web notifications.
 
-      if (currentToken) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.data();
-        
-        if (userData?.fcmToken !== currentToken) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            fcmToken: currentToken,
-            lastTokenSync: new Date()
-          });
-          console.log("FCM Token synced successfully");
-        }
-      }
+      // Web FCM is disabled as Firebase has been removed. 
+      // Relying on OneSignal for Web notifications.
     } catch (err) {
       console.error("FCM Token sync failed:", err);
     }
-  }, [user?.uid, requestNativePermission]);
+  }, [user?.id, requestNativePermission]);
   
   const syncOneSignalId = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.id) return;
     
     try {
       // @ts-ignore
@@ -199,30 +181,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const OneSignalDeferred = window.OneSignalDeferred;
 
       if (OneSignal) {
-        await OneSignal.login(user.uid);
+        await OneSignal.login(user.id);
         const subscriptionId = await OneSignal.User.PushSubscription.id;
         if (subscriptionId) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            oneSignalId: subscriptionId,
-            lastOneSignalSync: new Date()
-          });
+          await supabase
+            .from('profiles')
+            .update({
+              one_signal_id: subscriptionId,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
         }
       } else if (OneSignalDeferred) {
         OneSignalDeferred.push(async (OS: any) => {
-          await OS.login(user.uid);
+          await OS.login(user.id);
           const subscriptionId = await OS.User.PushSubscription.id;
           if (subscriptionId) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              oneSignalId: subscriptionId,
-              lastOneSignalSync: new Date()
-            });
+            await supabase
+              .from('profiles')
+              .update({
+                one_signal_id: subscriptionId,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
           }
         });
       }
     } catch (err) {
       console.error("OneSignal sync failed:", err);
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const sendOneSignalNotification = useCallback(async (targetId: string, title: string, body: string, data?: any) => {
     // WARNING: This is a client-side trigger. For production, move this to a backend.
@@ -270,7 +258,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (OneSignal) {
         OneSignal.push(async function() {
           await OneSignal.Notifications.requestPermission();
-          await OneSignal.login(user?.uid || ''); // Ensure identified on manual refresh
+          await OneSignal.login(user?.id || ''); 
           await syncOneSignalId();
         });
       }
@@ -282,11 +270,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err) {
       console.error("Manual refresh failed:", err);
     }
-  }, [syncFCMToken, syncOneSignalId, user?.uid]);
+  }, [syncFCMToken, syncOneSignalId, user?.id]);
 
   // Listen for native push notifications and token registration
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || !user?.uid) return;
+    if (!Capacitor.isNativePlatform() || !user?.id) return;
 
     let registrationListener: any;
     let registrationErrorListener: any;
@@ -297,13 +285,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       registrationListener = await PushNotifications.addListener('registration', async (token) => {
         console.log('Push registration success, token: ' + token.value);
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          const userData = userDoc.data();
-          if (userData?.fcmToken !== token.value) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              fcmToken: token.value,
-              lastTokenSync: new Date()
-            });
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('fcm_token')
+            .eq('id', user.id)
+            .single();
+
+          if (userData?.fcm_token !== token.value) {
+            await supabase
+              .from('profiles')
+              .update({
+                fcm_token: token.value,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
           }
         } catch (err) {
           console.error("Failed to sync native FCM token:", err);
@@ -338,27 +333,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       pushNotificationReceivedListener?.remove();
       pushNotificationActionPerformedListener?.remove();
     };
-  }, [user?.uid, showToast, playTone]);
+  }, [user?.id, showToast, playTone]);
 
-  // Listen for foreground messages
-  useEffect(() => {
-    if (!messaging) return;
-    
-    const unsubscribe = onMessage(messaging, (payload) => {
-      console.log('Foreground message received:', payload);
-      if (payload.notification) {
-        showToast({
-          type: 'message',
-          title: payload.notification.title || 'New Notification',
-          message: payload.notification.body || '',
-          avatarUrl: payload.notification.image
-        });
-        playTone('incoming');
-      }
-    });
-
-    return () => unsubscribe();
-  }, [showToast, playTone]);
+  // Foreground message listener removed as Firebase messaging is disabled
 
   return (
     <NotificationContext.Provider value={{ showToast, playTone, stopTone, requestNativePermission, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification, refreshNotifications }}>

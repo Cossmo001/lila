@@ -10,16 +10,7 @@ import {
   Trash2,
   ChevronRight
 } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  orderBy
-} from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 interface AdminStats {
   totalUsers: number;
@@ -42,43 +33,64 @@ const AdminPortal: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    
-    // Listen to Users
-    const usersUnsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(usersData);
-      setStats((prev: AdminStats) => ({ 
-        ...prev, 
-        totalUsers: snapshot.size,
-        activeUsers: usersData.filter((u: any) => u.isOnline).length
-      }));
-    });
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Initial fetches
+        const { data: profilesData, count: uCount } = await supabase.from('profiles').select('*', { count: 'exact' });
+        const { data: feedbackData, count: fCount } = await supabase.from('feedback').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+        const { count: cCount } = await supabase.from('chats').select('*', { count: 'exact', head: true });
 
-    // Listen to Feedback
-    const feedbackUnsub = onSnapshot(query(collection(db, 'feedback'), orderBy('createdAt', 'desc')), (snapshot) => {
-      const feedbackData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setFeedbacks(feedbackData);
-      setStats((prev: AdminStats) => ({ ...prev, totalFeedback: snapshot.size }));
-    });
+        if (profilesData) {
+          setUsers(profilesData);
+          setStats(prev => ({ 
+            ...prev, 
+            totalUsers: uCount || 0,
+            activeUsers: profilesData.filter(u => u.status === 'online').length
+          }));
+        }
+        if (feedbackData) {
+          setFeedbacks(feedbackData);
+          setStats(prev => ({ ...prev, totalFeedback: fCount || 0 }));
+        }
+        setStats(prev => ({ ...prev, totalChats: cCount || 0 }));
 
-    // Listen to Chats count
-    const chatsUnsub = onSnapshot(collection(db, 'chats'), (snapshot) => {
-      setStats((prev: AdminStats) => ({ ...prev, totalChats: snapshot.size }));
-    });
+      } catch (err) {
+        console.error("Error fetching admin data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    setLoading(false);
+    fetchData();
+
+    // Set up Realtime subscriptions
+    const profilesChannel = supabase.channel('admin_profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchData())
+      .subscribe();
+
+    const feedbackChannel = supabase.channel('admin_feedback')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchData())
+      .subscribe();
+
+    const chatsChannel = supabase.channel('admin_chats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => fetchData())
+      .subscribe();
 
     return () => {
-      usersUnsub();
-      feedbackUnsub();
-      chatsUnsub();
+      supabase.removeChannel(profilesChannel);
+      supabase.removeChannel(feedbackChannel);
+      supabase.removeChannel(chatsChannel);
     };
   }, []);
 
   const handleUpdateFeedbackStatus = async (id: string, status: string) => {
     try {
-      await updateDoc(doc(db, 'feedback', id), { status });
+      const { error } = await supabase
+        .from('feedback')
+        .update({ status })
+        .eq('id', id);
+      if (error) throw error;
     } catch (err) {
        console.error("Error updating feedback status:", err);
     }
@@ -87,7 +99,11 @@ const AdminPortal: React.FC = () => {
   const handleDeleteFeedback = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this feedback?")) {
       try {
-        await deleteDoc(doc(db, 'feedback', id));
+        const { error } = await supabase
+          .from('feedback')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
       } catch (err) {
          console.error("Error deleting feedback:", err);
       }
@@ -180,7 +196,7 @@ const AdminPortal: React.FC = () => {
                 <td>
                   <div className="user-cell">
                     <div className="avatar-sm">
-                      {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.username?.[0]}
+                      {user.avatar_url ? <img src={user.avatar_url} alt="" /> : user.username?.[0]}
                     </div>
                     <div className="user-meta">
                       <span className="name">{user.username}</span>
@@ -189,10 +205,10 @@ const AdminPortal: React.FC = () => {
                   </div>
                 </td>
                 <td>
-                  <span className={`status-dot ${user.isOnline ? 'online' : 'offline'}`} />
-                  {user.isOnline ? 'Online' : 'Offline'}
+                  <span className={`status-dot ${user.status === 'online' ? 'online' : 'offline'}`} />
+                  {user.status === 'online' ? 'Online' : 'Offline'}
                 </td>
-                <td>{user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
+                <td>{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</td>
                 <td>
                    <button className="icon-btn"><ChevronRight size={16} /></button>
                 </td>
@@ -225,7 +241,7 @@ const AdminPortal: React.FC = () => {
               <p className="feedback-text">{f.message}</p>
             </div>
             <div className="card-footer">
-              <span className="date">{f.createdAt?.toDate ? f.createdAt.toDate().toLocaleString() : 'N/A'}</span>
+              <span className="date">{f.created_at ? new Date(f.created_at).toLocaleString() : 'N/A'}</span>
               <div className="actions">
                 <button 
                   className="status-btn resolve" 

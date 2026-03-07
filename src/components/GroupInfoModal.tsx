@@ -3,8 +3,6 @@ import { X, UserMinus, LogOut, Trash2, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useRef } from 'react';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, getDoc } from 'firebase/firestore';
 
 interface GroupInfoModalProps {
   group: any;
@@ -19,26 +17,46 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isAdmin = group.groupMetadata?.admins?.includes(user?.uid);
+  
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+
+  const fetchMembers = async () => {
+    const { data, error } = await supabase
+      .from('chat_participants')
+      .select(`
+        user:profiles (*),
+        role
+      `)
+      .eq('chat_id', group.id);
+
+    if (!error && data) {
+      // Cast to any because Supabase join inference can sometimes treat 'user' as any[] in generic contexts
+      setMembers(data.map((m: any) => ({ ...m.user, role: m.role })));
+      const me = data.find((m: any) => m.user.id === user?.id);
+      setCurrentUserRole(me?.role || null);
+    }
+  };
 
   useEffect(() => {
-    const fetchMembers = async () => {
-      const memberData = await Promise.all(group.participants.map(async (uid: string) => {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        return userDoc.exists() ? { uid, ...userDoc.data() } : { uid, username: 'Unknown' };
-      }));
-      setMembers(memberData);
-    };
     fetchMembers();
-  }, [group.participants]);
+  }, [group.id]);
+
+  const isAdmin = currentUserRole === 'admin' || group.created_by === user?.id;
 
   const handleAddMember = async (newMember: any) => {
     if (!isAdmin) return;
     try {
-      await updateDoc(doc(db, 'chats', group.id), {
-        participants: arrayUnion(newMember.uid),
-        updatedAt: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('chat_participants')
+        .insert({
+          chat_id: group.id,
+          user_id: newMember.id,
+          role: 'member'
+        });
+
+      if (error) throw error;
+
+      await fetchMembers();
       setSearchResults([]);
       setSearchTerm('');
       alert(`${newMember.username} added to group`);
@@ -52,35 +70,18 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
     if (!searchTerm.trim()) return;
     setIsSearching(true);
     try {
-      const searchLower = searchTerm.trim().toLowerCase();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', `%${searchTerm.trim()}%`)
+        .limit(10);
       
-      // Exact match check
-      const usernameRef = doc(db, 'usernames', searchLower);
-      const usernameDoc = await getDoc(usernameRef);
-      
-      const results: any[] = [];
-      if (usernameDoc.exists()) {
-        const uid = usernameDoc.data().uid;
-        if (!group.participants.includes(uid)) {
-          const userDoc = await getDoc(doc(db, 'users', uid));
-          if (userDoc.exists()) {
-            results.push({ uid, ...userDoc.data() });
-          }
-        }
-      }
+      if (error) throw error;
 
-      // Prefix search
-      const q = query(
-        collection(db, 'users'),
-        where('usernameLower', '>=', searchLower),
-        where('usernameLower', '<=', searchLower + '\uf8ff')
-      );
-      const snap = await getDocs(q);
-      const wideResults = snap.docs
-        .map(doc => ({ uid: doc.id, ...doc.data() }))
-        .filter(u => !group.participants.includes(u.uid) && !results.some(r => r.uid === u.uid));
+      const existingMemberIds = members.map(m => m.id);
+      const results = data.filter(u => !existingMemberIds.includes(u.id));
         
-      setSearchResults([...results, ...wideResults]);
+      setSearchResults(results || []);
     } catch (err) {
       console.error("Search error:", err);
     } finally {
@@ -88,14 +89,18 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
     }
   };
 
-  const handleRemoveMember = async (memberUid: string) => {
-    if (!isAdmin || memberUid === user?.uid) return;
+  const handleRemoveMember = async (memberId: string) => {
+    if (!isAdmin || memberId === user?.id) return;
     try {
-      await updateDoc(doc(db, 'chats', group.id), {
-        participants: arrayRemove(memberUid),
-        'groupMetadata.admins': arrayRemove(memberUid),
-        updatedAt: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('chat_participants')
+        .delete()
+        .eq('chat_id', group.id)
+        .eq('user_id', memberId);
+
+      if (error) throw error;
+
+      await fetchMembers();
       alert('Member removed successfully');
     } catch (err) {
       console.error("Error removing member:", err);
@@ -106,11 +111,13 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
     if (!user) return;
     if (confirm('Are you sure you want to leave this group?')) {
       try {
-        await updateDoc(doc(db, 'chats', group.id), {
-          participants: arrayRemove(user.uid),
-          'groupMetadata.admins': arrayRemove(user.uid),
-          updatedAt: serverTimestamp()
-        });
+        const { error } = await supabase
+          .from('chat_participants')
+          .delete()
+          .eq('chat_id', group.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
         onClose();
       } catch (err) {
         console.error("Error leaving group:", err);
@@ -137,12 +144,14 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
         .from('media')
         .getPublicUrl(fileName);
 
-      await updateDoc(doc(db, 'chats', group.id), {
-        'groupMetadata.photoURL': publicUrl,
-        updatedAt: serverTimestamp()
-      });
+      const { error: updateError } = await supabase
+        .from('chats')
+        .update({ icon_url: publicUrl })
+        .eq('id', group.id);
+
+      if (updateError) throw updateError;
       
-      // Update local state if needed, but Firestore listener should handle it
+      alert('Group icon updated');
     } catch (err: any) {
       console.error("Upload group icon error:", err);
       alert(`Upload failed: ${err.message}`);
@@ -167,11 +176,11 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
           >
             {isUploading ? (
               <div className="upload-spinner" />
-            ) : group.groupMetadata?.photoURL ? (
-              <img src={group.groupMetadata.photoURL} alt={group.groupMetadata.name} />
+            ) : group.icon_url ? (
+              <img src={group.icon_url} alt={group.name} />
             ) : (
               <div className="avatar-fallback" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent-blue)', color: 'white', fontSize: '5rem', fontWeight: 600, width: '100%', height: '100%', borderRadius: '50%' }}>
-                {group.groupMetadata.name[0].toUpperCase()}
+                {group.name?.[0]?.toUpperCase() || 'G'}
               </div>
             )}
             {isAdmin && !isUploading && (
@@ -189,8 +198,8 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
               style={{ display: 'none' }} 
             />
           )}
-          <h1>{group.groupMetadata.name}</h1>
-          <p className="wa-phone">Group • {group.participants.length} members</p>
+          <h1>{group.name}</h1>
+          <p className="wa-phone">Group • {members.length} members</p>
         </section>
 
         {isAdmin && (
@@ -213,9 +222,9 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
             
             <div className="search-results scroll-v" style={{ maxHeight: '150px' }}>
               {searchResults.map(result => (
-                <div key={result.uid} className="member-item" style={{ display: 'flex', alignItems: 'center', padding: '8px 0', borderBottom: '1px dotted var(--glass-border)' }}>
+                <div key={result.id} className="member-item" style={{ display: 'flex', alignItems: 'center', padding: '8px 0', borderBottom: '1px dotted var(--glass-border)' }}>
                     <div className="avatar" style={{ width: '32px', height: '32px', fontSize: '12px', marginRight: '8px' }}>
-                      {result.avatarUrl ? <img src={result.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : result.username[0].toUpperCase()}
+                      {result.avatar_url ? <img src={result.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : result.username[0].toUpperCase()}
                     </div>
                     <span style={{ fontSize: '0.9rem', flex: 1 }}>{result.username}</span>
                     <button 
@@ -234,23 +243,23 @@ const GroupInfoModal: React.FC<GroupInfoModalProps> = ({ group, onClose }) => {
           <div className="section-title">MEMBERS</div>
           <div className="member-list">
             {members.map(member => (
-              <div key={member.uid} className="member-item" style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--glass-border)' }}>
+              <div key={member.id} className="member-item" style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--glass-border)' }}>
                 <div className="avatar" style={{ marginRight: '12px', overflow: 'hidden' }}>
-                  {member.avatarUrl ? <img src={member.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : member.username[0].toUpperCase()}
+                  {member.avatar_url ? <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (member.username?.[0]?.toUpperCase() || '?')}
                 </div>
                 <div className="member-info" style={{ flex: 1 }}>
                   <div className="member-name" style={{ fontWeight: 500 }}>
-                    {member.username} {member.uid === user?.uid && '(You)'}
+                    {member.username} {member.id === user?.id && '(You)'}
                   </div>
-                  {group.groupMetadata.admins.includes(member.uid) && (
+                  {member.role === 'admin' && (
                     <div className="admin-badge" style={{ fontSize: '0.7rem', color: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: '4px', padding: '1px 4px', display: 'inline-block', marginTop: '2px' }}>
                       Group Admin
                     </div>
                   )}
                 </div>
-                {isAdmin && member.uid !== user?.uid && (
+                {isAdmin && member.id !== user?.id && (
                   <button 
-                    onClick={() => handleRemoveMember(member.uid)}
+                    onClick={() => handleRemoveMember(member.id)}
                     style={{ background: 'none', border: 'none', color: '#ff4b4b', cursor: 'pointer' }}
                     title="Remove member"
                   >

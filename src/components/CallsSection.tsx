@@ -1,23 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Video } from 'lucide-react';
-import { collection, query, where, onSnapshot, limit, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface CallLog {
   id: string;
-  callerId: string;
-  recipientId: string;
-  participants: string[];
+  caller_id: string;
+  recipient_id: string;
   status: string;
   type: 'audio' | 'video';
   caller: {
     username: string;
-    avatarUrl?: string | null;
-    uid: string;
+    avatar_url?: string | null;
+    id: string;
   };
-  recipientName?: string;
-  createdAt: any;
+  recipient: {
+    username: string;
+    avatar_url?: string | null;
+    id: string;
+  };
+  created_at: any;
 }
 
 interface CallsSectionProps {
@@ -32,31 +34,39 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
   useEffect(() => {
     if (!user) return;
 
-    // Fetch calls where user is either caller or recipient
-    const q = query(
-      collection(db, 'calls'),
-      where('participants', 'array-contains', user.uid),
-      orderBy('createdAt', 'desc'),
-      limit(20)
-    );
+    const fetchCalls = async () => {
+      const { data, error } = await supabase
+        .from('calls')
+        .select(`
+          *,
+          caller:profiles!caller_id(*),
+          recipient:profiles!recipient_id(*)
+        `)
+        .or(`caller_id.eq.${user.id},recipient_id.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const logs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as CallLog[];
-      setCalls(logs);
+      if (error) {
+        console.error("Calls fetch error:", error);
+      } else {
+        setCalls(data as any[]);
+      }
       setLoading(false);
-    }, (error) => {
-      console.error("Calls listener error:", error);
-      setLoading(false);
-    });
+    };
 
-    return unsubscribe;
+    fetchCalls();
+
+    const channel = supabase.channel('call_logs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calls' }, () => fetchCalls())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const getCallType = (call: CallLog) => {
-    if (call.callerId === user?.uid) return 'outgoing';
+    if (call.caller_id === user?.id) return 'outgoing';
     if (call.status === 'ringing') return 'missed';
     return 'incoming';
   };
@@ -71,7 +81,7 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = new Date(timestamp);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
     
@@ -108,8 +118,10 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
           ) : (
             calls.map(call => {
               const type = getCallType(call);
-              const displayName = type === 'outgoing' ? (call as any).recipientName || 'Contact' : call.caller.username;
-              const avatar = type === 'outgoing' ? null : call.caller.avatarUrl;
+              const isOutgoing = type === 'outgoing';
+              const displayContact = isOutgoing ? call.recipient : call.caller;
+              const displayName = displayContact?.username || 'Unknown';
+              const avatar = displayContact?.avatar_url;
 
               return (
                 <div key={call.id} className="chat-item">
@@ -122,10 +134,10 @@ const CallsSection: React.FC<CallsSectionProps> = ({ onInitiateCall }) => {
                     </div>
                     <div className="chat-bottom">
                       {getIcon(type)}
-                      <span className="chat-time" style={{ marginLeft: '4px' }}>{formatTime(call.createdAt)}</span>
+                      <span className="chat-time" style={{ marginLeft: '4px' }}>{formatTime(call.created_at)}</span>
                     </div>
                   </div>
-                  <div className="call-action" onClick={() => onInitiateCall?.(type === 'outgoing' ? { uid: call.recipientId, username: displayName } : call.caller, call.type)}>
+                  <div className="call-action" onClick={() => onInitiateCall?.(displayContact, call.type)}>
                     {call.type === 'video' ? <Video size={20} color="var(--accent)" /> : <Phone size={20} color="var(--accent)" />}
                   </div>
                 </div>

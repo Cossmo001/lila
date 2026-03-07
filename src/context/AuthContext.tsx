@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -29,106 +28,105 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubUserData: (() => void) | undefined;
+    let profileSubscription: any;
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // Cleanup previous user data listener if it exists
-      if (unsubUserData) {
-        unsubUserData();
-        unsubUserData = undefined;
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
 
-      setUser(user);
-      try {
-        if (user) {
-          const userRef = doc(db, 'users', user.uid);
-          
-          // Real-time listener for userData
-          unsubUserData = onSnapshot(userRef, async (snapshot) => {
-            if (snapshot.exists()) {
-              const data = snapshot.data();
-              setUserData({ ...data, uid: user.uid });
-              
-              // Auto-fix: Ensure legacy users have usernameLower for search
-              if (data.username && !data.usernameLower) {
-                console.log("Auto-fixing legacy user: adding usernameLower");
-                try {
-                  await updateDoc(userRef, {
-                    usernameLower: data.username.toLowerCase()
-                  });
-                } catch (e) {
-                  console.error("Failed to auto-fix legacy user:", e);
-                }
-              }
-            }
-          });
+      if (currentUser) {
+        // Fetch initial profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
 
-          // Set online status
-          await updateDoc(userRef, {
-            isOnline: true,
-            lastSeen: serverTimestamp()
-          });
-
-          // Handle window close / disconnect
-          const handlePresence = () => {
-            if (document.visibilityState === 'hidden') {
-              updateDoc(userRef, { isOnline: false, lastSeen: serverTimestamp() });
-            } else {
-              updateDoc(userRef, { isOnline: true, lastSeen: serverTimestamp() });
-            }
-          };
-
-          document.addEventListener('visibilitychange', handlePresence);
-        } else {
-          setUserData(null);
+        if (profile) {
+          setUserData(profile);
         }
-      } catch (err) {
-        console.error("Auth initialization error:", err);
-      } finally {
-        setLoading(false);
+
+        // Subscribe to profile changes
+        profileSubscription = supabase
+          .channel(`profile:${currentUser.id}`)
+          .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'profiles', 
+            filter: `id=eq.${currentUser.id}` 
+          }, (payload) => {
+            setUserData((prev: any) => ({ ...prev, ...payload.new }));
+          })
+          .subscribe();
+
+        // Update online status
+        await supabase
+          .from('profiles')
+          .update({ status: 'online', last_seen: new Date().toISOString() })
+          .eq('id', currentUser.id);
+
+        const handlePresence = async () => {
+          const isHidden = document.visibilityState === 'hidden';
+          await supabase
+            .from('profiles')
+            .update({ 
+              status: isHidden ? 'offline' : 'online', 
+              last_seen: new Date().toISOString() 
+            })
+            .eq('id', currentUser.id);
+        };
+
+        document.addEventListener('visibilitychange', handlePresence);
+        return () => {
+          document.removeEventListener('visibilitychange', handlePresence);
+        };
+      } else {
+        setUserData(null);
+        if (profileSubscription) profileSubscription.unsubscribe();
       }
+      setLoading(false);
     });
 
     return () => {
-      unsubscribe();
-      if (unsubUserData) unsubUserData();
+      subscription.unsubscribe();
+      if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
 
   const updateProfile = async (data: Partial<any>) => {
     if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-    });
+    await supabase
+      .from('profiles')
+      .upsert({ 
+        id: user.id,
+        ...data, 
+        updated_at: new Date().toISOString() 
+      });
   };
 
   const setContactAlias = async (contactUid: string, alias: string) => {
-    if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
-      [`contacts.${contactUid}.alias`]: alias,
-      updatedAt: serverTimestamp()
-    });
+    if (!user || !userData) return;
+    const updatedContacts = { 
+      ...(userData.contacts || {}), 
+      [contactUid]: { ...((userData.contacts || {})[contactUid] || {}), alias } 
+    };
+    await updateProfile({ contacts: updatedContacts });
   };
 
   const blockUser = async (contactUid: string) => {
-    if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
-      [`blockedUsers.${contactUid}`]: true,
-      updatedAt: serverTimestamp()
-    });
+    if (!user || !userData) return;
+    const updatedBlocked = { 
+      ...(userData.blocked_users || {}), 
+      [contactUid]: true 
+    };
+    await updateProfile({ blocked_users: updatedBlocked });
   };
 
   const unblockUser = async (contactUid: string) => {
-    if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
-      [`blockedUsers.${contactUid}`]: null,
-      updatedAt: serverTimestamp()
-    });
+    if (!user || !userData) return;
+    const updatedBlocked = { ...(userData.blocked_users || {}) };
+    delete updatedBlocked[contactUid];
+    await updateProfile({ blocked_users: updatedBlocked });
   };
 
   return (

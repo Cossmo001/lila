@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { User, Bell, Shield, LogOut, Camera, Check, X, ChevronLeft, ChevronRight, MessageSquare, Moon, Image as ImageIcon, UserX } from 'lucide-react';
-import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
@@ -28,12 +27,12 @@ const SettingsSection: React.FC = () => {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user?.uid) return;
+    if (!file || !user?.id) return;
 
     setIsUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.uid}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -46,7 +45,7 @@ const SettingsSection: React.FC = () => {
         .from('media')
         .getPublicUrl(filePath);
 
-      await updateProfile({ avatarUrl: publicUrl });
+      await updateProfile({ avatar_url: publicUrl });
     } catch (err: any) {
       console.error("Upload avatar error:", err);
       alert(`Upload failed: ${err.message}`);
@@ -57,12 +56,12 @@ const SettingsSection: React.FC = () => {
 
   const handleWallpaperUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user?.uid) return;
+    if (!file || !user?.id) return;
 
     setIsUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `wallpapers/${user.uid}_${Date.now()}.${fileExt}`;
+      const fileName = `wallpapers/${user.id}_${Date.now()}.${fileExt}`;
       const filePath = fileName;
 
       const { error: uploadError } = await supabase.storage
@@ -143,8 +142,8 @@ const SettingsSection: React.FC = () => {
     <div className="fade-in">
       <div className="profile-card" onClick={() => setIsEditingProfile(true)} style={{ cursor: 'pointer' }}>
         <div className="large-avatar">
-          {userData?.avatarUrl ? (
-            <img src={userData.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+          {userData?.avatar_url ? (
+            <img src={userData.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
           ) : (
             userData?.username?.[0]?.toUpperCase()
           )}
@@ -190,7 +189,7 @@ const SettingsSection: React.FC = () => {
           <ChevronRight size={18} color="var(--text-secondary)" style={{ marginLeft: 'auto' }} />
         </div>
         <hr className="section-divider" />
-        <div className="settings-item logout" onClick={() => auth.signOut()}>
+        <div className="settings-item logout" onClick={() => supabase.auth.signOut()}>
           <LogOut size={20} className="settings-icon" />
           <div className="settings-text">
             <span>Logout</span>
@@ -208,7 +207,7 @@ const SettingsSection: React.FC = () => {
       </div>
       <div className="sub-view-item">
         <label>USER ID</label>
-        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{user?.uid}</span>
+        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{user?.id}</span>
       </div>
       <div className="settings-item" style={{ marginTop: '20px', color: '#ff4b4b' }}>
         <Shield size={20} className="settings-icon" color="#ff4b4b" />
@@ -252,8 +251,8 @@ const SettingsSection: React.FC = () => {
       
       <div className="section-title" style={{ marginTop: '20px' }}>Blocked Contacts</div>
       <div className="settings-list">
-        {userData?.blockedUsers && Object.keys(userData.blockedUsers).length > 0 ? (
-          Object.keys(userData.blockedUsers).map(uid => (
+        {userData?.blocked_users && Object.keys(userData.blocked_users).length > 0 ? (
+          Object.keys(userData.blocked_users).map(uid => (
             <div key={uid} className="settings-item">
               <UserX size={20} className="settings-icon" color="#ff4b4b" />
               <div className="settings-text">
@@ -310,7 +309,7 @@ const SettingsSection: React.FC = () => {
       
       <div className="settings-item" style={{ marginTop: '20px' }} onClick={async () => {
         if (confirm("This will re-request all permissions and refresh your notification IDs. Continue?")) {
-          localStorage.removeItem(`permissions_handled_${user?.uid}`);
+          localStorage.removeItem(`permissions_handled_${user?.id}`);
           await refreshNotifications();
           window.location.reload(); // Force reload to trigger the overlay check
         }
@@ -423,8 +422,8 @@ const SettingsSection: React.FC = () => {
             <div className="large-avatar">
               {isUploading ? (
                 <div className="upload-spinner" />
-              ) : userData?.avatarUrl ? (
-                <img src={userData.avatarUrl} alt="Avatar" />
+              ) : userData?.avatar_url ? (
+                <img src={userData.avatar_url} alt="Avatar" />
               ) : (
                 userData?.username?.[0]?.toUpperCase()
               )}

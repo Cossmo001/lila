@@ -1,11 +1,46 @@
 import { useState, useCallback, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, writeBatch, getDoc, increment } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import type { Message } from '../types';
 
 export const useChat = (chatId: string | null, userId: string | null) => {
   const [messages, setMessages] = useState<Message[]>([]);
+
+  const fetchMessages = async () => {
+    if (!chatId) return;
+    const { data, error } = await supabase
+      .from('messages')
+      .select(`
+        *,
+        sender:profiles!sender_id(*)
+      `)
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching messages:', error);
+      return;
+    }
+
+    const formattedMessages = data.map(msg => ({
+      id: msg.id,
+      text: msg.content,
+      type: msg.type || 'text',
+      mediaUrl: msg.metadata?.mediaUrl,
+      sender: msg.sender_id === userId ? 'me' : 'them',
+      senderId: msg.sender_id,
+      senderName: msg.sender?.username || 'Unknown',
+      senderAvatar: msg.sender?.avatar_url,
+      timestamp: new Date(msg.created_at),
+      read: msg.is_read || false,
+      delivered: true, // Supabase real-time implies delivery
+      isDeleted: msg.metadata?.isDeleted || false,
+      isEdited: msg.metadata?.isEdited || false,
+      editedAt: msg.metadata?.editedAt ? new Date(msg.metadata.editedAt) : undefined,
+      replyTo: msg.metadata?.replyTo
+    } as Message));
+
+    setMessages(formattedMessages);
+  };
 
   useEffect(() => {
     if (!chatId || !userId) {
@@ -13,124 +48,83 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       return;
     }
 
-    const q = query(
-      collection(db, 'chats', chatId, 'messages'),
-      orderBy('timestamp', 'asc')
-    );
+    fetchMessages();
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      // ... existing logic ...
-      const msgs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          text: data.text,
-          type: data.type || 'text',
-          mediaUrl: data.mediaUrl,
-          sender: data.senderId === userId ? 'me' : 'them',
-          senderId: data.senderId,
-          senderName: data.senderName,
-          senderAvatar: data.senderAvatar,
-          timestamp: data.timestamp?.toDate() || new Date(),
-          read: data.read || false,
-          delivered: data.delivered || false,
-          isDeleted: data.isDeleted || false,
-          isEdited: data.isEdited || false,
-          editedAt: data.editedAt?.toDate(),
-          replyTo: data.replyTo
-        } as Message;
-      });
-      setMessages(msgs);
-
-      // Auto-mark incoming messages as read/delivered
-      const unreadThemMessages = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return data.senderId !== userId && !data.read;
-      });
-
-      if (unreadThemMessages.length > 0) {
-        try {
-          const batch = writeBatch(db);
-          unreadThemMessages.forEach(msgDoc => {
-            batch.update(msgDoc.ref, { read: true, delivered: true });
-          });
-          
-          const lastMsgDoc = snapshot.docs[snapshot.docs.length - 1];
-          const chatRef = doc(db, 'chats', chatId);
-          if (lastMsgDoc && unreadThemMessages.find(m => m.id === lastMsgDoc.id)) {
-            batch.update(chatRef, {
-              'lastMessage.read': true,
-              'lastMessage.delivered': true,
-              unreadCount: 0
-            });
-          } else {
-            // Also reset unreadCount if we are reading any messages even if it's not the last one
-            batch.update(chatRef, { unreadCount: 0 });
-          }
-          
-          await batch.commit();
-        } catch (err) {
-          console.error('Error updating read receipts:', err);
+    const channel = supabase
+      .channel(`chat:${chatId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'messages', 
+        filter: `chat_id=eq.${chatId}` 
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          fetchMessages(); // Simplest way to get the joined sender info
+        } else if (payload.eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === payload.new.id ? {
+            ...m,
+            text: payload.new.content,
+            read: payload.new.is_read,
+            isEdited: payload.new.metadata?.isEdited,
+            isDeleted: payload.new.metadata?.isDeleted
+          } : m));
+        } else if (payload.eventType === 'DELETE') {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
         }
-      }
-    }, (error) => {
-      console.error('Messages listener error:', error);
-      if (error.code === 'permission-denied') {
-        console.error('Permission denied for messages subcollection. Check Firebase Rules.');
-      }
-    });
+      })
+      .subscribe();
 
-    return unsubscribe;
+    // Mark messages as read
+    supabase
+      .from('messages')
+      .update({ is_read: true })
+      .eq('chat_id', chatId)
+      .neq('sender_id', userId)
+      .eq('is_read', false)
+      .then(({ error }) => {
+        if (error) console.error('Error marking messages as read:', error);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [chatId, userId]);
 
   const sendMessage = useCallback(async (text: string, type: 'text' | 'image' | 'video' | 'audio' | 'file' | 'link' = 'text', mediaUrl?: string, replyTo?: Message['replyTo']) => {
     if (!chatId || !userId) return;
 
-    // We need userData for senderName and senderAvatar
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    const userData = userSnap.exists() ? userSnap.data() : null;
-
-    // Detect if text contains a link and mark it
     let messageType = type;
     if (type === 'text' && /https?:\/\/[^\s]+/.test(text)) {
       messageType = 'link';
     }
 
-    const messageData: any = {
-      text,
-      type: messageType,
-      mediaUrl: mediaUrl || null,
-      senderId: userId,
-      senderName: userData?.username || 'Unknown',
-      senderAvatar: userData?.avatarUrl || null,
-      timestamp: serverTimestamp(),
-      read: false,
-      delivered: false,
-      isDeleted: false
-    };
+    const { error: msgError } = await supabase
+      .from('messages')
+      .insert({
+        chat_id: chatId,
+        sender_id: userId,
+        content: text,
+        type: messageType,
+        metadata: {
+          mediaUrl: mediaUrl || null,
+          replyTo: replyTo || null,
+          isDeleted: false,
+          isEdited: false
+        }
+      });
 
-    if (replyTo) {
-      messageData.replyTo = replyTo;
+    if (msgError) {
+      console.error('Error sending message:', msgError);
+      return;
     }
 
-    // Add message to subcollection
-    await addDoc(collection(db, 'chats', chatId, 'messages'), messageData);
-
-    // Update last message in chat doc
-    const lastMsgText = messageType === 'text' ? text : 
-                        messageType === 'link' ? text : `[${messageType}]`;
-    await writeBatch(db).update(doc(db, 'chats', chatId), {
-      lastMessage: {
-        text: lastMsgText,
-        senderId: userId,
-        senderName: userData?.username || 'Unknown',
-        read: false,
-        delivered: false,
-      },
-      updatedAt: serverTimestamp(),
-      unreadCount: increment(1)
-    }).commit();
+    // Update chat last message timestamp
+    await supabase
+      .from('chats')
+      .update({
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', chatId);
   }, [chatId, userId]);
 
   const sendMediaMessage = useCallback(async (file: File, type: 'image' | 'video' | 'audio' | 'file', caption?: string) => {
@@ -140,7 +134,6 @@ export const useChat = (chatId: string | null, userId: string | null) => {
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${chatId}/${type === 'file' ? 'docs' : type + 's'}/${fileName}`;
     
-    // Upload to Supabase Storage
     const { error } = await supabase.storage
       .from('media') 
       .upload(filePath, file);
@@ -151,92 +144,51 @@ export const useChat = (chatId: string | null, userId: string | null) => {
       return;
     }
 
-    // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('media')
       .getPublicUrl(filePath);
     
-    // For files, we might want to include the filename in the text if no caption provided
     const messageText = caption || (type === 'file' ? file.name : "");
     await sendMessage(messageText, type, publicUrl);
   }, [chatId, userId, sendMessage]);
 
-
   const editMessage = useCallback(async (messageId: string, newText: string) => {
     if (!chatId || !userId) return;
 
-    const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
-    const msgSnap = await getDoc(msgRef);
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        content: newText,
+        metadata: {
+          isEdited: true,
+          editedAt: new Date().toISOString()
+        }
+      })
+      .eq('id', messageId)
+      .eq('sender_id', userId);
 
-    if (!msgSnap.exists()) return;
-
-    const data = msgSnap.data();
-    if (data.senderId !== userId) {
-      alert("You can only edit your own messages.");
-      return;
+    if (error) {
+      console.error('Error editing message:', error);
     }
-
-    const batch = writeBatch(db);
-    batch.update(msgRef, {
-      text: newText,
-      isEdited: true,
-      editedAt: serverTimestamp()
-    });
-
-    // If this was the last message, update the chat's lastMessage
-    const chatRef = doc(db, 'chats', chatId);
-    const chatSnap = await getDoc(chatRef);
-    if (chatSnap.exists() && chatSnap.data().lastMessage?.text === data.text) {
-      batch.update(chatRef, {
-        'lastMessage.text': newText
-      });
-    }
-
-    await batch.commit();
   }, [chatId, userId]);
 
   const deleteMessage = useCallback(async (messageId: string) => {
     if (!chatId || !userId) return;
 
-    const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
-    const msgSnap = await getDoc(msgRef);
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        content: "This message was deleted",
+        metadata: {
+          isDeleted: true
+        }
+      })
+      .eq('id', messageId)
+      .eq('sender_id', userId);
 
-    if (!msgSnap.exists()) return;
-
-    const data = msgSnap.data();
-    if (data.senderId !== userId) {
-      alert("You can only delete your own messages.");
-      return;
+    if (error) {
+      console.error('Error deleting message:', error);
     }
-
-    const timestamp = data.timestamp?.toDate() || new Date();
-    const now = new Date();
-    const diffInHours = (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours > 12) {
-      alert("Messages can only be deleted within 12 hours of sending.");
-      return;
-    }
-
-    const batch = writeBatch(db);
-    batch.update(msgRef, {
-      text: "This message was deleted",
-      type: 'text',
-      mediaUrl: null,
-      isDeleted: true
-    });
-
-    // If this was the last message, update the chat's lastMessage
-    const chatRef = doc(db, 'chats', chatId);
-    const chatSnap = await getDoc(chatRef);
-    if (chatSnap.exists() && chatSnap.data().lastMessage?.text === data.text) {
-      batch.update(chatRef, {
-        'lastMessage.text': "This message was deleted",
-        'lastMessage.isDeleted': true
-      });
-    }
-
-    await batch.commit();
   }, [chatId, userId]);
 
   return { messages, sendMessage, sendMediaMessage, editMessage, deleteMessage };

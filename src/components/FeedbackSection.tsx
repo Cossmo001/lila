@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Star, Send, Bug, Sparkles, MessageCircle, CheckCircle } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 type FeedbackCategory = 'bug' | 'feature' | 'general';
@@ -21,16 +20,19 @@ const FeedbackSection: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'feedback'), {
-        userId: user.uid,
-        username: userData?.username || 'Unknown',
-        email: user.email,
-        rating,
-        category,
-        message: message.trim(),
-        createdAt: serverTimestamp(),
-        status: 'pending'
-      });
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          user_id: user.id,
+          username: userData?.username || 'Unknown',
+          email: user.email,
+          rating,
+          category,
+          message: message.trim(),
+          status: 'pending'
+        });
+      
+      if (error) throw error;
       setIsSuccess(true);
       setRating(0);
       setMessage('');

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MessageSquarePlus, Check, CheckCheck, MoreVertical, Users } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, onSnapshot, orderBy } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import CreateGroupPanel from './CreateGroupModal';
 
@@ -9,33 +8,6 @@ interface SidebarProps {
   onSelectChat: (chat: any) => void;
   activeChatId: string | null;
 }
-
-// Simple client-side cache for user profiles to save on Firestore reads
-const userProfileCache: Record<string, any> = {};
-const pendingUserRequests: Record<string, Promise<any> | undefined> = {};
-
-const getCachedUser = async (uid: string) => {
-  if (userProfileCache[uid]) return userProfileCache[uid];
-  const pending = pendingUserRequests[uid];
-  if (pending) return pending;
-
-  pendingUserRequests[uid] = (async () => {
-    try {
-      const userRef = doc(db, 'users', uid);
-      const userDoc = await getDoc(userRef);
-      const data = userDoc.exists() ? userDoc.data() : { username: 'Unknown User', uid };
-      userProfileCache[uid] = data;
-      return data;
-    } catch (err) {
-      console.error("Error fetching user for cache:", err);
-      return { username: 'Unknown User', uid };
-    } finally {
-      delete pendingUserRequests[uid];
-    }
-  })();
-
-  return pendingUserRequests[uid];
-};
 
 const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const { user, userData } = useAuth();
@@ -47,67 +19,63 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'favorites'>('all');
   const [currentPanel, setCurrentPanel] = useState<'chats' | 'new-group'>('chats');
 
-  // Load existing chats with real-time presence and unread logic
+  // Load existing chats with real-time updates
   useEffect(() => {
     if (!user) return;
-    const q = query(
-      collection(db, 'chats'), 
-      where('participants', 'array-contains', user.uid),
-      orderBy('updatedAt', 'desc')
-    );
-    
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      try {
-        const chatList = await Promise.all(snapshot.docs.map(async (chatDoc) => {
-          const data = chatDoc.data();
-          if (data.isGroup) {
-            return { id: chatDoc.id, ...data };
-          }
-          const recipientUid = data.participants.find((p: string) => p !== user?.uid);
-          
-          if (!recipientUid) return null;
 
-          // Use optimized cache helper
-          const recipientData = await getCachedUser(recipientUid);
+    const fetchChats = async () => {
+      const { data, error } = await supabase
+        .from('chat_participants')
+        .select(`
+          chat_id,
+          chat:chats (
+            *,
+            participants:chat_participants (
+              user:profiles (*)
+            )
+          )
+        `)
+        .eq('user_id', user.id);
 
-          return {
-            id: chatDoc.id,
-            ...data,
-            recipient: { uid: recipientUid, ...recipientData }
-          };
-        }));
-        setChats(chatList.filter(Boolean));
-      } catch (err) {
-        console.error("Error processing chats:", err);
+      if (error) {
+        console.error("Error fetching chats:", error);
+        return;
       }
-    }, (error) => {
-      console.error("Chats listener error:", error);
-      if (error.code === 'failed-precondition' || error.message?.includes('index')) {
-        console.warn("Firestore index missing or other precondition failed. Falling back to client-side sort.");
-        const qNoSort = query(
-          collection(db, 'chats'),
-          where('participants', 'array-contains', user.uid)
-        );
-        onSnapshot(qNoSort, async (snapshot) => {
-           const list = await Promise.all(snapshot.docs.map(async (chatDoc) => {
-              const data = chatDoc.data();
-              if (data.isGroup) return { id: chatDoc.id, ...data };
-              const recipientUid = data.participants.find((p: string) => p !== user?.uid);
-              if (!recipientUid) return null;
-              
-              const recipientData = await getCachedUser(recipientUid);
-              return { id: chatDoc.id, ...data, recipient: { uid: recipientUid, ...recipientData } };
-           }));
-           const sorted = list.filter(Boolean).sort((a: any, b: any) => {
-              const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt || 0);
-              const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt || 0);
-              return tB - tA;
-           });
-           setChats(sorted);
-        });
-      }
-    });
-    return unsubscribe;
+
+      const formattedChats = data.map((item: any) => {
+        const chat = item.chat;
+        if (chat.is_group) {
+          return { id: chat.id, ...chat };
+        }
+        const recipientParticipant = chat.participants.find((p: any) => p.user.id !== user.id);
+        return {
+          id: chat.id,
+          ...chat,
+          recipient: recipientParticipant?.user
+        };
+      });
+
+      setChats(formattedChats.sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      ));
+    };
+
+    fetchChats();
+
+    const channel = supabase
+      .channel('sidebar-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'chats' 
+      }, () => {
+        fetchChats();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -118,41 +86,15 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
     setHasSearched(true);
 
     try {
-      const searchLower = searchTerm.trim().toLowerCase();
-      const usernameRef = doc(db, 'usernames', searchLower);
-      const usernameDoc = await getDoc(usernameRef);
-      
-      const results: any[] = [];
-      const seenUids = new Set<string>();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', `%${searchTerm.trim()}%`)
+        .neq('id', user?.id)
+        .limit(20);
 
-      if (usernameDoc.exists()) {
-        const uid = usernameDoc.data().uid;
-        if (uid !== user?.uid) {
-           const userRef = doc(db, 'users', uid);
-           const userDoc = await getDoc(userRef);
-           if (userDoc.exists()) {
-             const foundUserData = { ...userDoc.data(), uid };
-             results.push(foundUserData);
-             seenUids.add(uid);
-           }
-        }
-      }
-
-      const q = query(
-        collection(db, 'users'), 
-        where('usernameLower', '>=', searchLower),
-        where('usernameLower', '<=', searchLower + '\uf8ff')
-      );
-      const querySnapshot = await getDocs(q);
-      querySnapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.uid !== user?.uid && !seenUids.has(data.uid)) {
-          results.push(data);
-          seenUids.add(data.uid);
-        }
-      });
-      
-      setSearchResults(results);
+      if (error) throw error;
+      setSearchResults(data || []);
     } catch (err) {
       console.error("Search error:", err);
     } finally {
@@ -163,7 +105,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
   const startChat = async (recipient: any) => {
     if (!user) return;
     
-    const existingChat = chats.find(chat => chat.participants.includes(recipient.uid));
+    // Check if chat already exists
+    const existingChat = chats.find(chat => 
+      !chat.is_group && chat.recipient?.id === recipient.id
+    );
     
     if (existingChat) {
       onSelectChat(existingChat);
@@ -172,43 +117,53 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       return;
     }
 
-    const chatId = [user.uid, recipient.uid].sort().join('_');
-    const chatRef = doc(db, 'chats', chatId);
-    
-    await setDoc(chatRef, {
-      id: chatId,
-      participants: [user.uid, recipient.uid],
-      lastMessage: null,
-      updatedAt: serverTimestamp(),
-      unreadCount: 0,
-      isFavorite: false
-    }, { merge: true });
+    try {
+      // 1. Create chat
+      const { data: newChat, error: chatError } = await supabase
+        .from('chats')
+        .insert({ is_group: false })
+        .select()
+        .single();
 
-    onSelectChat({
-      id: chatId,
-      participants: [user.uid, recipient.uid],
-      recipient
-    });
+      if (chatError) throw chatError;
 
-    setSearchResults([]);
-    setSearchTerm('');
+      // 2. Add participants
+      await supabase
+        .from('chat_participants')
+        .insert([
+          { chat_id: newChat.id, user_id: user.id },
+          { chat_id: newChat.id, user_id: recipient.id }
+        ]);
+
+      const chatWithRecipient = {
+        ...newChat,
+        recipient
+      };
+
+      onSelectChat(chatWithRecipient);
+      setSearchResults([]);
+      setSearchTerm('');
+    } catch (err) {
+      console.error("Error starting chat:", err);
+    }
   };
 
   const filteredChats = chats.filter(chat => {
-    if (activeFilter === 'unread') return chat.lastMessage?.senderId !== user?.uid && !chat.lastMessage?.read;
-    if (activeFilter === 'favorites') return chat.isFavorite;
+    // Note: unread logic needs backend or junction flags in Supabase
+    if (activeFilter === 'unread') return chat.unread_count > 0; 
+    if (activeFilter === 'favorites') return chat.is_favorite;
     return true;
   });
 
-  const formatTime = (timestamp: any) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const formatTime = (isoString: string) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const renderStatusTicks = (lastMessage: any) => {
-    if (!lastMessage || lastMessage.senderId !== user?.uid) return null;
-    if (lastMessage.read) return <CheckCheck size={14} color="var(--accent)" style={{ marginRight: '4px' }} />;
+    if (!lastMessage || lastMessage.sender_id !== user?.id) return null;
+    if (lastMessage.is_read) return <CheckCheck size={14} color="var(--accent)" style={{ marginRight: '4px' }} />;
     if (lastMessage.delivered) return <CheckCheck size={14} color="var(--text-secondary)" style={{ marginRight: '4px' }} />;
     return <Check size={14} color="var(--text-secondary)" style={{ marginRight: '4px' }} />;
   };
@@ -232,8 +187,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
       <header className="chat-header">
         <div className="header-left">
           <div className="avatar" style={{ background: 'var(--accent-blue)' }}>
-            {userData?.avatarUrl ? (
-              <img src={userData.avatarUrl} alt="Me" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            {userData?.avatar_url ? (
+              <img src={userData.avatar_url} alt="Me" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             ) : (
               userData?.username?.[0]?.toUpperCase() || 'U'
             )}
@@ -342,30 +297,30 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
               <div className="avatar" style={{ background: chat.isGroup ? 'var(--accent-purple)' : 'var(--accent-blue)' }}>
                 {chat.isGroup ? (
                   chat.groupMetadata?.photoURL ? <img src={chat.groupMetadata.photoURL} alt="" /> : <Users size={20} />
-                ) : chat.recipient?.avatarUrl ? (
-                  <img src={chat.recipient.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : chat.recipient?.avatar_url ? (
+                  <img src={chat.recipient.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
                   chat.recipient?.username?.[0]?.toUpperCase() || '?'
                 )}
               </div>
-              {!chat.isGroup && chat.recipient?.isOnline && <div className="online-indicator" />}
+              {!chat.is_group && chat.recipient?.is_online && <div className="online-indicator" />}
             </div>
             <div className="chat-info">
               <div className="chat-top">
                 <span className="chat-name">
-                  {chat.isGroup ? chat.groupMetadata?.name : (userData?.contacts?.[chat.recipient?.uid]?.alias || chat.recipient?.username)}
+                  {chat.is_group ? chat.name : (userData?.contacts?.[chat.recipient?.id]?.alias || chat.recipient?.username)}
                 </span>
-                <span className="chat-time">{formatTime(chat.updatedAt)}</span>
+                <span className="chat-time">{formatTime(chat.updated_at)}</span>
               </div>
               <div className="chat-bottom">
                 <p className="chat-last-msg">
-                  {renderStatusTicks(chat.lastMessage)}
-                  {chat.lastMessage?.text || 'No messages yet'}
+                  {renderStatusTicks(chat.last_message)}
+                  {chat.last_message?.text || 'No messages yet'}
                 </p>
-                {chat.unreadCount > 0 && chat.lastMessage?.senderId !== user?.uid && (
-                  <div className="unread-badge">{chat.unreadCount}</div>
+                {chat.unread_count > 0 && chat.last_message?.sender_id !== user?.id && (
+                  <div className="unread-badge">{chat.unread_count}</div>
                 )}
-                {chat.unreadCount === 0 && chat.lastMessage?.senderId !== user?.uid && !chat.lastMessage?.read && (
+                {chat.unread_count === 0 && chat.last_message?.sender_id !== user?.id && chat.last_message && !chat.last_message?.is_read && (
                   <div className="unread-dot" />
                 )}
               </div>

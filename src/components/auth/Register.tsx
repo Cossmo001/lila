@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { auth, db } from '../../lib/firebase';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 
 interface RegisterProps {
@@ -22,54 +20,52 @@ const Register: React.FC<RegisterProps> = ({ onToggle }) => {
     setLoading(true);
 
     try {
-      // Check if username is taken
-      try {
-        const usernameDoc = await getDoc(doc(db, 'usernames', username.toLowerCase()));
-        if (usernameDoc.exists()) {
-          throw new Error('Username already taken');
-        }
-      } catch (checkErr: any) {
-        if (checkErr.code === 'permission-denied') {
-          console.error("Firestore permission denied on usernames check. Ensure Security Rules allow read access.");
-          throw new Error('Registration error: Username check failed due to insufficient permissions. Please contact support.');
-        } else if (checkErr.code === 'unavailable') {
-          throw new Error('Network error: Firestore is unavailable. Please check your internet connection.');
-        }
-        throw checkErr;
+      // 1. Check if username is taken
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username)
+        .single();
+      
+      if (existingUser) {
+        throw new Error('Username already taken');
       }
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      await updateProfile(user, { displayName: username });
-
-      // Save user data
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        username: username,
-        usernameLower: username.toLowerCase(),
-        email: email,
-        photoURL: null,
-        isOnline: true,
-        lastSeen: new Date(),
-        createdAt: new Date(),
+      // 2. Sign up the user
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username
+          }
+        }
       });
 
-      // Reserve username
-      await setDoc(doc(db, 'usernames', username.toLowerCase()), {
-        uid: user.uid
-      });
+      if (signUpError) throw signUpError;
+      if (!user) throw new Error('Registration failed');
 
-      // Request notification permissions
+      // 3. Create the profile (Supabase triggers or direct insert)
+      // Since we want to ensure it's created with our custom data:
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          username: username,
+          avatar_url: null,
+          status: 'online',
+          last_seen: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (profileError) throw profileError;
+
+      // 4. Request notification permissions
       await requestNativePermission();
 
     } catch (err: any) {
       console.error("Registration error:", err);
-      if (err.code === 'auth/network-request-failed' || err.message?.includes('offline')) {
-        setError('Network error: Please check your internet connection and try again.');
-      } else {
-        setError(err.message || 'An unexpected error occurred during registration.');
-      }
+      setError(err.message || 'An unexpected error occurred during registration.');
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { auth } from '../../lib/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
+import PasswordResetTab from './PasswordResetTab';
 
 interface LoginProps {
   onToggle: () => void;
@@ -12,6 +12,7 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<'login' | 'reset'>('login');
   const { requestNativePermission } = useNotification();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -20,19 +21,38 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
       // Request notification permissions
       await requestNativePermission();
     } catch (err: any) {
-      setError('Invalid email or password');
+      setError(err.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
   };
 
+  if (mode === 'reset') {
+    return (
+      <div className="auth-container">
+        <PasswordResetTab 
+          initialEmail={email} 
+          onBack={() => setMode('login')} 
+          onEmailChange={setEmail}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="auth-card fade-in">
+        <div className="flashing-alert">
+           ⚠️ <strong>Migration Update:</strong> Please reset your password to access your migrated data on the new platform.
+        </div>
         <h1>Welcome Back</h1>
         <p>Login to continue your conversations.</p>
         <form onSubmit={handleLogin}>
@@ -61,6 +81,13 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <button 
+          className="password-reset-btn-link" 
+          onClick={() => setMode('reset')}
+          disabled={loading}
+        >
+          Forgot Password? Reset here
+        </button>
         <div className="auth-footer">
           Don't have an account? <span onClick={onToggle}>Register</span>
         </div>
