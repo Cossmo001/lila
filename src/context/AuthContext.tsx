@@ -58,40 +58,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserData((prev: any) => ({ ...prev, ...payload.new }));
           })
           .subscribe();
-
-        // Update online status
-        await supabase
-          .from('profiles')
-          .update({ status: 'online', last_seen: new Date().toISOString() })
-          .eq('id', currentUser.id);
-
-        const handlePresence = async () => {
-          const isHidden = document.visibilityState === 'hidden';
-          await supabase
-            .from('profiles')
-            .update({ 
-              status: isHidden ? 'offline' : 'online', 
-              last_seen: new Date().toISOString() 
-            })
-            .eq('id', currentUser.id);
-        };
-
-        document.addEventListener('visibilitychange', handlePresence);
-        return () => {
-          document.removeEventListener('visibilitychange', handlePresence);
-        };
-      } else {
-        setUserData(null);
-        if (profileSubscription) profileSubscription.unsubscribe();
-      }
-      setLoading(false);
-    });
+        } else {
+          setUserData(null);
+          if (profileSubscription) profileSubscription.unsubscribe();
+        }
+        setLoading(false);
+      });
 
     return () => {
       subscription.unsubscribe();
       if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
+
+  // Dedicated presence management
+  useEffect(() => {
+    if (!user) return;
+
+    const handlePresence = async () => {
+      const isHidden = document.visibilityState === 'hidden';
+      await supabase
+        .from('profiles')
+        .update({ 
+          status: isHidden ? 'offline' : 'online', 
+          last_seen: new Date().toISOString() 
+        })
+        .eq('id', user.id);
+    };
+
+    document.addEventListener('visibilitychange', handlePresence);
+    return () => {
+      document.removeEventListener('visibilitychange', handlePresence);
+    };
+  }, [user]);
 
   const updateProfile = async (data: Partial<any>) => {
     if (!user) return;
