@@ -31,50 +31,61 @@ const AdminPortal: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+    const fetchData = async (isInitial = false) => {
+      if (isInitial) setLoading(true);
+      setError(null);
       try {
         // Initial fetches
-        const { data: profilesData, count: uCount } = await supabase.from('profiles').select('*', { count: 'exact' });
-        const { data: feedbackData, count: fCount } = await supabase.from('feedback').select('*', { count: 'exact' }).order('created_at', { ascending: false });
-        const { count: cCount } = await supabase.from('chats').select('*', { count: 'exact', head: true });
+        const [profilesRes, feedbackRes, chatsRes] = await Promise.all([
+          supabase.from('profiles').select('*', { count: 'exact' }),
+          supabase.from('feedback').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
+          supabase.from('chats').select('*', { count: 'exact', head: true })
+        ]);
 
-        if (profilesData) {
-          setUsers(profilesData);
+        if (profilesRes.error) throw profilesRes.error;
+        if (feedbackRes.error) throw feedbackRes.error;
+        if (chatsRes.error) throw chatsRes.error;
+
+        if (profilesRes.data) {
+          setUsers(profilesRes.data);
           setStats(prev => ({ 
             ...prev, 
-            totalUsers: uCount || 0,
-            activeUsers: profilesData.filter(u => u.status === 'online').length
+            totalUsers: profilesRes.count || 0,
+            activeUsers: profilesRes.data.filter(u => u.status === 'online').length
           }));
         }
-        if (feedbackData) {
-          setFeedbacks(feedbackData);
-          setStats(prev => ({ ...prev, totalFeedback: fCount || 0 }));
+        
+        if (feedbackRes.data) {
+          setFeedbacks(feedbackRes.data);
+          setStats(prev => ({ ...prev, totalFeedback: feedbackRes.count || 0 }));
         }
-        setStats(prev => ({ ...prev, totalChats: cCount || 0 }));
+        
+        setStats(prev => ({ ...prev, totalChats: chatsRes.count || 0 }));
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error fetching admin data:", err);
+        setError(err.message || "Failed to load management data. Please check your connection and database permissions.");
       } finally {
-        setLoading(false);
+        if (isInitial) setLoading(false);
       }
     };
 
-    fetchData();
+    fetchData(true);
 
     // Set up Realtime subscriptions
     const profilesChannel = supabase.channel('admin_profiles')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchData(false))
       .subscribe();
 
     const feedbackChannel = supabase.channel('admin_feedback')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchData(false))
       .subscribe();
 
     const chatsChannel = supabase.channel('admin_chats')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => fetchData(false))
       .subscribe();
 
     return () => {
@@ -302,8 +313,18 @@ const AdminPortal: React.FC = () => {
       </header>
 
       <main className="admin-content">
-        {loading ? (
-          <div className="admin-loading">Loading Management Data...</div>
+        {error ? (
+          <div className="admin-error-state premium-glass fade-in">
+            <XCircle size={48} color="#ff4b4b" />
+            <h2>Sync Issue Detected</h2>
+            <p>{error}</p>
+            <button className="auth-button" onClick={() => window.location.reload()}>Retry Connection</button>
+          </div>
+        ) : loading ? (
+          <div className="admin-loading">
+            <div className="loader"></div>
+            Loading Management Data...
+          </div>
         ) : (
           <>
             {activeTab === 'dashboard' && renderDashboard()}
@@ -582,6 +603,40 @@ const AdminPortal: React.FC = () => {
           border: 1px solid var(--glass-border);
           border-radius: 16px;
         }
+        .admin-loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          gap: 20px;
+          color: var(--text-secondary);
+        }
+        .loader {
+          width: 40px;
+          height: 40px;
+          border: 3px solid var(--glass-border);
+          border-top: 3px solid var(--accent);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .admin-error-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px;
+          text-align: center;
+          gap: 16px;
+          max-width: 500px;
+          margin: 40px auto;
+        }
+        .admin-error-state h2 { margin-top: 8px; }
+        .admin-error-state p { color: var(--text-secondary); margin-bottom: 8px; }
         .avatar-sm, .avatar-xs {
            width: 36px;
            height: 36px;
