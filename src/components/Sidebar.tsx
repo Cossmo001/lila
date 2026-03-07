@@ -32,10 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
             unread_count,
             chat:chats (
               *,
-              last_message:messages(content, sender_id, created_at, type, is_read),
-              participants:chat_participants (
-                user:profiles (*)
-              )
+              last_message:messages(content, sender_id, created_at, type, is_read)
             )
           `)
           .eq('user_id', user.id);
@@ -52,11 +49,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
             const chat = item.chat;
             if (!chat) return null;
 
-            let previewText = lastMsgRaw.content || '';
-            if (lastMsgRaw.type === 'image') previewText = `📷 Photo${previewText ? ': ' + previewText : ''}`;
-            else if (lastMsgRaw.type === 'video') previewText = `🎥 Video${previewText ? ': ' + previewText : ''}`;
-            else if (lastMsgRaw.type === 'audio') previewText = `🎵 Audio`;
-            else if (lastMsgRaw.type === 'file') previewText = `📄 Document`;
+            const lastMsgRaw = chat.last_message?.[0];
+            let previewText = lastMsgRaw?.content || '';
+            if (lastMsgRaw?.type === 'image') previewText = `📷 Photo${previewText ? ': ' + previewText : ''}`;
+            else if (lastMsgRaw?.type === 'video') previewText = `🎥 Video${previewText ? ': ' + previewText : ''}`;
+            else if (lastMsgRaw?.type === 'audio') previewText = `🎵 Audio`;
+            else if (lastMsgRaw?.type === 'file') previewText = `📄 Document`;
 
             const lastMsg = lastMsgRaw ? {
               ...lastMsgRaw,

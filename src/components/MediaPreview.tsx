@@ -47,6 +47,31 @@ interface MediaPreviewProps {
   onUpdateMedia?: (index: number, updatedMedia: MediaItem) => void;
 }
 
+const ThumbnailItem: React.FC<{ 
+  item: MediaItem; 
+  isActive: boolean; 
+  onClick: () => void; 
+}> = ({ item, isActive, onClick }) => {
+  const thumbUrl = useMemo(() => URL.createObjectURL(item.file), [item.file]);
+  
+  useEffect(() => {
+    return () => URL.revokeObjectURL(thumbUrl);
+  }, [thumbUrl]);
+
+  return (
+    <div 
+      className={`thumbnail-item ${isActive ? 'active' : ''}`}
+      onClick={onClick}
+    >
+      {item.type === 'image' ? (
+        <img src={thumbUrl} alt="thumb" />
+      ) : (
+        <video src={thumbUrl} muted />
+      )}
+    </div>
+  );
+};
+
 const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onAddMedia, onUpdateMedia }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [captions, setCaptions] = useState<{ [index: number]: string }>({});
@@ -305,23 +330,16 @@ const MediaPreview: React.FC<MediaPreviewProps> = ({ media, onClose, onSend, onA
             <div className="thumbnail-strip">
               {media.map((item, index) => {
                 if (item.type !== 'image' && item.type !== 'video') return null;
-                // Note: In a real app, we'd cache these URLs to avoid memory leaks
-                const thumbUrl = URL.createObjectURL(item.file);
                 return (
-                  <div 
-                    key={index} 
-                    className={`thumbnail-item ${index === effectiveIndex ? 'active' : ''}`}
+                  <ThumbnailItem 
+                    key={index}
+                    item={item}
+                    isActive={index === effectiveIndex}
                     onClick={() => {
                       setCurrentIndex(index);
-                      setActiveTool(null); // Reset tool when switching
+                      setActiveTool(null);
                     }}
-                  >
-                    {item.type === 'image' ? (
-                      <img src={thumbUrl} alt="thumb" />
-                    ) : (
-                      <video src={thumbUrl} muted />
-                    )}
-                  </div>
+                  />
                 );
               })}
               <div className="thumbnail-add-btn" onClick={() => addMediaInputRef.current?.click()}>
