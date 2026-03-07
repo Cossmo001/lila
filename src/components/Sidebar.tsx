@@ -63,14 +63,16 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
               is_read: lastMsgRaw.is_read
             } : null;
 
-            const recipientParticipant = chat.participants?.find((p: any) => p.user && p.user.id !== user.id);
+            // Robust check for recipients
+            const participants = chat.participants || [];
+            const recipientParticipant = participants.find((p: any) => p.user && p.user.id !== user.id);
             
             const baseChat = {
               id: chat.id,
               ...chat,
               unread_count: item.unread_count || 0,
               last_message: lastMsg,
-              recipient: recipientParticipant?.user
+              recipient: recipientParticipant?.user || null
             };
 
             if (chat.is_group) {
@@ -361,9 +363,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
             <div className="chat-info">
               <div className="chat-top">
                 <span className="chat-name">
-                  {chat.is_group ? chat.name : (userData?.contacts?.[chat.recipient?.id]?.alias || chat.recipient?.username)}
+                  {chat.is_group ? (chat.name || 'Unnamed Group') : (userData?.contacts?.[chat.recipient?.id]?.alias || chat.recipient?.username || 'Unknown')}
                 </span>
-                <span className="chat-time">{formatTime(chat.updated_at)}</span>
+                <span className="chat-time">{chat.updated_at ? formatTime(chat.updated_at) : ''}</span>
               </div>
               <div className="chat-bottom">
                 <p className="chat-last-msg">
