@@ -32,18 +32,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
+      console.log("Auth State Change:", { event: _event, userId: currentUser?.id });
       setUser(currentUser);
 
       if (currentUser) {
+        console.log("Fetching profile for:", currentUser.id);
         // Fetch initial profile
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', currentUser.id)
           .single();
 
+        if (error) {
+          console.error("Profile fetch error:", error);
+        }
+
         if (profile) {
+          console.log("Profile loaded:", profile.username);
           setUserData(profile);
+        } else {
+          console.warn("No profile found for user!");
         }
 
         // Subscribe to profile changes
@@ -55,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             table: 'profiles', 
             filter: `id=eq.${currentUser.id}` 
           }, (payload) => {
+            console.log("Profile Real-time change:", payload.new);
             setUserData((prev: any) => ({ ...prev, ...payload.new }));
           })
           .subscribe();

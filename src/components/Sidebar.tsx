@@ -24,51 +24,69 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
     if (!user) return;
 
     const fetchChats = async () => {
-      const { data, error } = await supabase
-        .from('chat_participants')
-        .select(`
-          chat_id,
-          chat:chats (
-            *,
-            last_message:messages!last_message_id(*),
-            participants:chat_participants (
-              user:profiles (*)
+      try {
+        const { data, error } = await supabase
+          .from('chat_participants')
+          .select(`
+            chat_id,
+            chat:chats (
+              *,
+              participants:chat_participants (
+                user:profiles (*)
+              )
             )
-          )
-        `)
-        .eq('user_id', user.id);
+          `)
+          .eq('user_id', user.id);
 
-      if (error) {
-        console.error("Error fetching chats:", error);
-        return;
-      }
-
-      const formattedChats = data.map((item: any) => {
-        const chat = item.chat;
-        if (!chat) return null;
-
-        const lastMsg = chat.last_message ? {
-          ...chat.last_message,
-          text: chat.last_message.content,
-          sender_id: chat.last_message.sender_id,
-          is_read: chat.last_message.is_read
-        } : null;
-
-        if (chat.is_group) {
-          return { id: chat.id, ...chat, last_message: lastMsg };
+        if (error) {
+          console.error("Error fetching chats:", error);
+          return;
         }
-        const recipientParticipant = chat.participants?.find((p: any) => p.user.id !== user.id);
-        return {
-          id: chat.id,
-          ...chat,
-          last_message: lastMsg,
-          recipient: recipientParticipant?.user
-        };
-      }).filter(Boolean);
 
-      setChats(formattedChats.sort((a, b) => 
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      ));
+        if (!data) return;
+
+        const formattedChats = data.map((item: any) => {
+          try {
+            const chat = item.chat;
+            if (!chat) return null;
+
+            const lastMsgRaw = (chat as any).last_message;
+            const lastMsg = lastMsgRaw ? {
+              ...lastMsgRaw,
+              text: lastMsgRaw.content,
+              sender_id: lastMsgRaw.sender_id,
+              is_read: lastMsgRaw.is_read
+            } : null;
+
+            const recipientParticipant = chat.participants?.find((p: any) => p.user && p.user.id !== user.id);
+            
+            const baseChat = {
+              id: chat.id,
+              ...chat,
+              last_message: lastMsg,
+              recipient: recipientParticipant?.user
+            };
+
+            if (chat.is_group) {
+              return { ...baseChat, name: chat.name || 'Unnamed Group' };
+            }
+            
+            return baseChat;
+          } catch (err) {
+            console.error("Error formatting individual chat:", err, item);
+            return null;
+          }
+        }).filter(Boolean);
+
+        setChats(formattedChats.sort((a, b) => {
+          const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          if (isNaN(timeA) || isNaN(timeB)) return 0;
+          return timeB - timeA;
+        }));
+      } catch (err) {
+        console.error("Global Sidebar fetch error:", err);
+      }
     };
 
     fetchChats();

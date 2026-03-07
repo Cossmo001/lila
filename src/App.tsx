@@ -27,6 +27,7 @@ const PERMISSION_VERSION = "1.1"; // Increment this to force all users to re-req
 
 function App() {
   const { user, userData, loading } = useAuth();
+  console.log("App Render State:", { loading, hasUser: !!user, hasUserData: !!userData });
   const { join, leave } = useAgora();
   const { showToast, playTone, stopTone, sendNativeNotification, syncFCMToken, syncOneSignalId, sendOneSignalNotification, refreshNotifications } = useNotification();
   const [activeChat, setActiveChat] = useState<any | null>(null);
@@ -448,6 +449,7 @@ function App() {
   const formatLastSeen = (lastSeen: any) => {
     if (!lastSeen) return '';
     const date = lastSeen.toDate ? lastSeen.toDate() : new Date(lastSeen);
+    if (isNaN(date.getTime())) return '';
     return `last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 

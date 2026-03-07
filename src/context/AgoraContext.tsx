@@ -25,7 +25,14 @@ export const useAgora = () => {
 };
 
 export const AgoraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [client] = useState(() => AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' }));
+  const [client] = useState(() => {
+    try {
+      return AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+    } catch (err) {
+      console.error("AgoraRTC client creation failed:", err);
+      return null as any; // Fail gracefully
+    }
+  });
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
@@ -59,6 +66,8 @@ export const AgoraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Use the worse of the two for overall quality
       setNetworkQuality(Math.max(stats.uplinkNetworkQuality, stats.downlinkNetworkQuality));
     };
+
+    if (!client) return;
 
     client.on('user-published', handleUserPublished);
     client.on('user-unpublished', handleUserUnpublished);
