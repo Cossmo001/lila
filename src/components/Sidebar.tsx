@@ -45,9 +45,11 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
 
       const formattedChats = data.map((item: any) => {
         const chat = item.chat;
+        if (!chat) return null;
+
         const lastMsg = chat.last_message ? {
           ...chat.last_message,
-          text: chat.last_message.content, // Map content back to text for display
+          text: chat.last_message.content,
           sender_id: chat.last_message.sender_id,
           is_read: chat.last_message.is_read
         } : null;
@@ -55,14 +57,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, activeChatId }) => {
         if (chat.is_group) {
           return { id: chat.id, ...chat, last_message: lastMsg };
         }
-        const recipientParticipant = chat.participants.find((p: any) => p.user.id !== user.id);
+        const recipientParticipant = chat.participants?.find((p: any) => p.user.id !== user.id);
         return {
           id: chat.id,
           ...chat,
           last_message: lastMsg,
           recipient: recipientParticipant?.user
         };
-      });
+      }).filter(Boolean);
 
       setChats(formattedChats.sort((a, b) => 
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()

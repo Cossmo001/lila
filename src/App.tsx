@@ -606,7 +606,7 @@ function App() {
         </div>
 
         {showProfileModal && activeChat && (
-        activeChat.isGroup ? (
+        activeChat.is_group ? (
           <GroupInfoModal 
             group={activeChat} 
             onClose={() => setShowProfileModal(false)} 
